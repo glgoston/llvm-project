@@ -562,9 +562,14 @@ def : Pat<(i32 (TriCoreWrapper tglobaladdr:$dst)),
 		 (MOVi32 tglobaladdr:$dst)>;
 
 // Indirect call via address register (A[a]).
+// CALLI encodes only s1 (the call target); d, s2, n are unused encoding bits.
 let isCall = 1, Defs = [A11], Uses = [A10] in
-  def CALLIa : RR<0x2D, 0x00, (outs), (ins AddrRegs:$s1),
-    "calli $s1", [(tricore_call AddrRegs:$s1)]>;
+	def CALLIa : RR<0x2D, 0x00, (outs), (ins AddrRegs:$s1),
+		"calli $s1", [(tricore_call AddrRegs:$s1)]> {
+		let d = 0;
+		let s2 = 0;
+		let n = 0;
+	}
 
 // Pattern for calls to external (runtime-library) symbols.
 def : Pat<(tricore_call texternalsym:$dst), (CALLb texternalsym:$dst)>;

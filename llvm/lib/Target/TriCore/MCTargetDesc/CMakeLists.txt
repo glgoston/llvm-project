@@ -6,3 +6,5 @@ add_llvm_library(LLVMTriCoreDesc
   TriCoreELFObjectWriter.cpp
   TriCoreInstPrinter.cpp
   )
+
+target_compile_options(LLVMTriCoreDesc PRIVATE -g)

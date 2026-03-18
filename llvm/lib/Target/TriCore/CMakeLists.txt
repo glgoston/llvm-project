@@ -23,6 +23,7 @@ add_llvm_target(TriCoreCodeGen
   TriCoreRegisterInfo.cpp
   TriCoreInstrInfo.cpp
   TriCoreFrameLowering.cpp
+  TriCoreCallingConvHook.cpp
   TriCoreISelLowering.cpp
   TriCoreSelectionDAGInfo.cpp
   TriCoreISelDAGToDAG.cpp
@@ -46,6 +47,9 @@ add_llvm_target(TriCoreCodeGen
   ADD_TO_COMPONENT
   TriCore
 )
+
+# Build the TriCore main codegen library with debug info even in Release builds.
+target_compile_options(LLVMTriCoreCodeGen PRIVATE -g)
 
 add_subdirectory(TargetInfo)
 add_subdirectory(MCTargetDesc)

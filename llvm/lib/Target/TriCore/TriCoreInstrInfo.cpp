@@ -148,7 +148,7 @@ void TriCoreInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   else if (TriCore::ExtRegsRegClass.hasSubClassEq(RC))
     Opc = TriCore::STDbo;
   else
-    llvm_unreachable(“Cannot store register class to stack slot”);
+    llvm_unreachable("Cannot store register class to stack slot");
 
   BuildMI(MBB, I, DL, get(Opc))
       .addReg(SrcReg, getKillRegState(isKill))
@@ -182,7 +182,7 @@ void TriCoreInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   else if (TriCore::ExtRegsRegClass.hasSubClassEq(RC))
     Opc = TriCore::LDDbo;
   else
-    llvm_unreachable(“Cannot load register class from stack slot”);
+    llvm_unreachable("Cannot load register class from stack slot");
 
   BuildMI(MBB, I, DL, get(Opc), DestReg)
       .addFrameIndex(FrameIndex)

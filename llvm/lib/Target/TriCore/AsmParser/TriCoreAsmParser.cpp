@@ -89,6 +89,10 @@ struct TriCoreOperand : public MCParsedAsmOperand {
 
   static std::unique_ptr<TriCoreOperand> createToken(StringRef Token,
                                                      SMLoc Start, SMLoc End);
+  static std::unique_ptr<TriCoreOperand> createReg(MCRegister RegNum,
+                                                   SMLoc Start, SMLoc End);
+  static std::unique_ptr<TriCoreOperand> createImm(const MCExpr *Val,
+                                                   SMLoc Start, SMLoc End);
 
   SMLoc getStartLoc() const override { return Start; }
   SMLoc getEndLoc() const override { return End; }
@@ -110,6 +114,18 @@ struct TriCoreOperand : public MCParsedAsmOperand {
     return Tok;
   }
 
+  const MCExpr *getImm() const {
+    assert(Kind == KindTy::Immediate && "Invalid type access!");
+    return Imm.Val;
+  }
+
+  static void addExpr(MCInst &Inst, const MCExpr *Expr) {
+    if (const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(Expr))
+      Inst.addOperand(MCOperand::createImm(CE->getValue()));
+    else
+      Inst.addOperand(MCOperand::createExpr(Expr));
+  }
+
   void addRegOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     Inst.addOperand(MCOperand::createReg(getReg()));
@@ -117,7 +133,7 @@ struct TriCoreOperand : public MCParsedAsmOperand {
 
   void addImmOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
-    // addExpr(Inst, getImm());
+    addExpr(Inst, getImm());
   }
 };
 } // namespace
@@ -131,7 +147,21 @@ struct TriCoreOperand : public MCParsedAsmOperand {
 std::unique_ptr<TriCoreOperand>
 TriCoreOperand::createToken(StringRef Token, SMLoc Start, SMLoc End) {
   auto Op = std::make_unique<TriCoreOperand>(KindTy::Token, Start, End);
-  // Op->Token = Token;
+  Op->Tok = Token;
+  return Op;
+}
+
+std::unique_ptr<TriCoreOperand>
+TriCoreOperand::createReg(MCRegister RegNum, SMLoc Start, SMLoc End) {
+  auto Op = std::make_unique<TriCoreOperand>(KindTy::Register, Start, End);
+  Op->Reg.RegNum = RegNum;
+  return Op;
+}
+
+std::unique_ptr<TriCoreOperand>
+TriCoreOperand::createImm(const MCExpr *Val, SMLoc Start, SMLoc End) {
+  auto Op = std::make_unique<TriCoreOperand>(KindTy::Immediate, Start, End);
+  Op->Imm.Val = Val;
   return Op;
 }
 
@@ -241,7 +271,12 @@ OperandMatchResultTy TriCoreAsmParser::tryParseRegister(MCRegister &RegNo,
   const AsmToken &Tok = getParser().getTok();
   StartLoc = Tok.getLoc();
   EndLoc = Tok.getEndLoc();
-  StringRef Name = getLexer().getTok().getIdentifier();
+
+  // Only identifiers can be register names.
+  if (Tok.isNot(AsmToken::Identifier))
+    return MatchOperand_NoMatch;
+
+  StringRef Name = Tok.getString();
   RegNo = MatchRegisterName(Name);
 
   if (RegNo == TriCore::NoRegister)
@@ -260,23 +295,40 @@ void TriCoreAsmParser::eatComma() {
 bool TriCoreAsmParser::ParseInstruction(ParseInstructionInfo &Info,
                                         StringRef Name, SMLoc NameLoc,
                                         OperandVector &Operands) {
-  SMLoc Start = getLexer().getLoc();
-  Operands.push_back(TriCoreOperand::createToken(Name, Start, Start));
+  Operands.push_back(TriCoreOperand::createToken(Name, NameLoc, NameLoc));
+
+  // Return early if there are no operands.
+  if (getLexer().is(AsmToken::EndOfStatement)) {
+    Parser.Lex();
+    return false;
+  }
 
   bool First = true;
-  while (Parser.getTok().isNot(AsmToken::EndOfStatement)) {
+  while (getLexer().isNot(AsmToken::EndOfStatement)) {
     if (!First) {
-      eatComma();
-    } else {
-      First = false;
+      if (getLexer().isNot(AsmToken::Comma))
+        return Error(getLexer().getLoc(), "expected ','");
+      Parser.Lex(); // eat comma
+    }
+    First = false;
+
+    // Try to parse a register operand.
+    MCRegister RegNo;
+    SMLoc RegStart, RegEnd;
+    if (tryParseRegister(RegNo, RegStart, RegEnd) == MatchOperand_Success) {
+      Operands.push_back(TriCoreOperand::createReg(RegNo, RegStart, RegEnd));
+      continue;
     }
 
- //   auto MatchResult = MatchOperandParserImpl(Operands, Name);
- //   if (MatchResult == MatchOperand_Success) {
- //     continue;
- //   }
+    // Try to parse an immediate/expression operand.
+    SMLoc ExprStart = getLexer().getLoc();
+    const MCExpr *Expr;
+    if (!getParser().parseExpression(Expr)) {
+      SMLoc ExprEnd = getLexer().getLoc();
+      Operands.push_back(TriCoreOperand::createImm(Expr, ExprStart, ExprEnd));
+      continue;
+    }
 
-    // Add custom operand formats here...
     SMLoc Loc = getLexer().getLoc();
     Parser.eatToEndOfStatement();
     return Error(Loc, "unexpected token parsing operands");
