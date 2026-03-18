@@ -104,6 +104,12 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
   // setOperationAction(ISD::SRA,           MVT::i16,   Custom);
   // setOperationAction(ISD::SIGN_EXTEND,   MVT::i16,   Expand);
 
+  // Integer division has no hardware support; expand to runtime library calls.
+  setOperationAction(ISD::SDIV, MVT::i32, Expand);
+  setOperationAction(ISD::UDIV, MVT::i32, Expand);
+  setOperationAction(ISD::SREM, MVT::i32, Expand);
+  setOperationAction(ISD::UREM, MVT::i32, Expand);
+
   // for (MVT VT : MVT::integer_valuetypes())
   // setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i16,   Custom);
 }
@@ -348,8 +354,10 @@ SDValue TriCoreTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
   SDValue TargetCC;
   SDValue Flag = EmitCMP(LHS, RHS, CC, dl, DAG, TargetCC);
+  SDValue One  = DAG.getConstant(1, dl, Op.getValueType());
+  SDValue Zero = DAG.getConstant(0, dl, Op.getValueType());
   SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
-  SDValue Ops[] = {LHS, RHS, TargetCC, Flag};
+  SDValue Ops[] = {One, Zero, TargetCC, Flag};
 
   return DAG.getNode(TriCoreISD::SELECT_CC, dl, VTs, Ops);
 }

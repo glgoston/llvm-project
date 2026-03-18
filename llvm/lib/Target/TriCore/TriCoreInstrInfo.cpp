@@ -754,3 +754,212 @@ bool TriCoreInstrInfo::expandPostRAPseudo(MachineInstr &MI) const
 	}
 	}
 }
+
+//===----------------------------------------------------------------------===//
+// Branch Analysis
+//===----------------------------------------------------------------------===//
+
+TriCoreCC::CondCodes
+TriCoreInstrInfo::getCondFromBranchOpc(unsigned Opc) const {
+  switch (Opc) {
+  default:
+    return TriCoreCC::COND_INVALID;
+  case TriCore::JNZsbr:
+    return TriCoreCC::COND_NE;
+  case TriCore::JZsbr:
+    return TriCoreCC::COND_EQ;
+  case TriCore::JEQbrc:
+  case TriCore::JEQbrr:
+    return TriCoreCC::COND_EQ;
+  case TriCore::JNEbrc:
+  case TriCore::JNEbrr:
+    return TriCoreCC::COND_NE;
+  case TriCore::JGEbrc:
+  case TriCore::JGEbrr:
+    return TriCoreCC::COND_GE;
+  case TriCore::JLTbrc:
+  case TriCore::JLTbrr:
+    return TriCoreCC::COND_LT;
+  }
+}
+
+TriCoreCC::CondCodes
+TriCoreInstrInfo::getOppositeCondition(TriCoreCC::CondCodes CC) const {
+  switch (CC) {
+  default:
+    llvm_unreachable("Unknown condition code");
+  case TriCoreCC::COND_EQ:
+    return TriCoreCC::COND_NE;
+  case TriCoreCC::COND_NE:
+    return TriCoreCC::COND_EQ;
+  case TriCoreCC::COND_GE:
+    return TriCoreCC::COND_LT;
+  case TriCoreCC::COND_LT:
+    return TriCoreCC::COND_GE;
+  }
+}
+
+// Return the branch opcode for a given condition.
+// NE/EQ use the 16-bit single-reg JNZ/JZ forms.
+// GE/LT use the 32-bit two-reg brr forms; insertBranch supplies the operands.
+unsigned TriCoreInstrInfo::getBrCond(TriCoreCC::CondCodes CC) const {
+  switch (CC) {
+  default:
+    llvm_unreachable("Unknown condition code");
+  case TriCoreCC::COND_NE:
+    return TriCore::JNZsbr;
+  case TriCoreCC::COND_EQ:
+    return TriCore::JZsbr;
+  case TriCoreCC::COND_GE:
+    return TriCore::JGEbrr;
+  case TriCoreCC::COND_LT:
+    return TriCore::JLTbrr;
+  }
+}
+
+// analyzeBranch — classify the terminator(s) at the end of MBB.
+//
+// Cond layout:
+//   Cond[0]    — TriCoreCC::CondCodes imm
+//   Cond[1..]  — remaining operands from the branch MachineInstr (MO[1..])
+//                e.g. for JNZsbr: [reg]; for JGEbrr: [s1, s2]
+bool TriCoreInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
+                                      MachineBasicBlock *&TBB,
+                                      MachineBasicBlock *&FBB,
+                                      SmallVectorImpl<MachineOperand> &Cond,
+                                      bool AllowModify) const {
+  TBB = FBB = nullptr;
+  Cond.clear();
+
+  MachineBasicBlock::iterator I = MBB.getLastNonDebugInstr();
+  if (I == MBB.end() || !I->isTerminator())
+    return false; // No branch — falls through.
+
+  // Collect last two terminators.
+  MachineBasicBlock::iterator LastInst = I;
+  MachineBasicBlock::iterator SecondLastInst = MBB.end();
+
+  if (I != MBB.begin()) {
+    MachineBasicBlock::iterator J = std::prev(I);
+    while (J->isDebugInstr() && J != MBB.begin())
+      --J;
+    if (J->isTerminator() && J != I)
+      SecondLastInst = J;
+  }
+
+  unsigned LastOpc = LastInst->getOpcode();
+  TriCoreCC::CondCodes LastCC = getCondFromBranchOpc(LastOpc);
+
+  // --- Single terminator ---
+  if (SecondLastInst == MBB.end()) {
+    if (LastOpc == TriCore::Jb) {
+      // Unconditional branch.
+      TBB = LastInst->getOperand(0).getMBB();
+      return false;
+    }
+    if (LastCC != TriCoreCC::COND_INVALID) {
+      // Conditional branch with implicit fall-through.
+      TBB = LastInst->getOperand(0).getMBB();
+      Cond.push_back(MachineOperand::CreateImm(LastCC));
+      for (unsigned j = 1; j < LastInst->getNumOperands(); ++j)
+        Cond.push_back(LastInst->getOperand(j));
+      return false;
+    }
+    return true; // Unknown single terminator.
+  }
+
+  // --- Two terminators: (conditional, unconditional) ---
+  unsigned SecondLastOpc = SecondLastInst->getOpcode();
+  TriCoreCC::CondCodes SecondLastCC = getCondFromBranchOpc(SecondLastOpc);
+
+  if (SecondLastCC != TriCoreCC::COND_INVALID &&
+      LastOpc == TriCore::Jb) {
+    TBB = SecondLastInst->getOperand(0).getMBB();
+    FBB = LastInst->getOperand(0).getMBB();
+    Cond.push_back(MachineOperand::CreateImm(SecondLastCC));
+    for (unsigned j = 1; j < SecondLastInst->getNumOperands(); ++j)
+      Cond.push_back(SecondLastInst->getOperand(j));
+
+    // If AllowModify and FBB is the layout successor, invert the condition
+    // and remove the trailing unconditional branch.
+    if (AllowModify) {
+      MachineFunction::iterator NextBB =
+          std::next(MachineFunction::iterator(MBB));
+      if (NextBB != MBB.getParent()->end() && &*NextBB == FBB) {
+        TriCoreCC::CondCodes InvCC = getOppositeCondition(SecondLastCC);
+        MachineBasicBlock *NewTBB = FBB;
+        FBB = nullptr;
+        Cond.clear();
+        Cond.push_back(MachineOperand::CreateImm(InvCC));
+        for (unsigned j = 1; j < SecondLastInst->getNumOperands(); ++j)
+          Cond.push_back(SecondLastInst->getOperand(j));
+        SecondLastInst->eraseFromParent();
+        LastInst->eraseFromParent();
+        BuildMI(MBB, MBB.end(), DebugLoc(), get(getBrCond(InvCC)))
+            .addMBB(NewTBB);
+        TBB = NewTBB;
+      }
+    }
+    return false;
+  }
+
+  return true; // Cannot analyse anything else.
+}
+
+unsigned TriCoreInstrInfo::removeBranch(MachineBasicBlock &MBB,
+                                         int *BytesRemoved) const {
+  MachineBasicBlock::iterator I = MBB.end();
+  unsigned Count = 0;
+  if (BytesRemoved)
+    *BytesRemoved = 0;
+
+  while (I != MBB.begin()) {
+    --I;
+    if (I->isDebugInstr())
+      continue;
+    // Stop at the first non-branch.
+    if (I->getOpcode() != TriCore::Jb &&
+        getCondFromBranchOpc(I->getOpcode()) == TriCoreCC::COND_INVALID)
+      break;
+    if (BytesRemoved)
+      *BytesRemoved += getInstSizeInBytes(*I);
+    I->eraseFromParent();
+    I = MBB.end();
+    ++Count;
+  }
+  return Count;
+}
+
+// insertBranch — re-insert branches described by Cond (from analyzeBranch).
+//
+// Cond[0] = TriCoreCC::CondCodes imm; Cond[1..] = comparison operands.
+// The target MBB is always operand 0, consistent with JNZsbr and Jb.
+unsigned TriCoreInstrInfo::insertBranch(MachineBasicBlock &MBB,
+                                         MachineBasicBlock *TBB,
+                                         MachineBasicBlock *FBB,
+                                         ArrayRef<MachineOperand> Cond,
+                                         const DebugLoc &DL,
+                                         int *BytesAdded) const {
+  assert(!BytesAdded && "BytesAdded not implemented for TriCore");
+  assert(TBB && "insertBranch must not be told to insert a fallthrough");
+
+  if (Cond.empty()) {
+    // Unconditional branch.
+    assert(!FBB && "Unconditional branch cannot have two targets");
+    BuildMI(&MBB, DL, get(TriCore::Jb)).addMBB(TBB);
+    return 1;
+  }
+
+  // Conditional branch.
+  assert(Cond[0].isImm() && "Cond[0] must be a condition-code immediate");
+  auto CC = static_cast<TriCoreCC::CondCodes>(Cond[0].getImm());
+  MachineInstrBuilder MIB = BuildMI(&MBB, DL, get(getBrCond(CC))).addMBB(TBB);
+  for (unsigned i = 1; i < Cond.size(); ++i)
+    MIB.add(Cond[i]);
+
+  if (!FBB)
+    return 1;
+
+  BuildMI(&MBB, DL, get(TriCore::Jb)).addMBB(FBB);
+  return 2;
+}

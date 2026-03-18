@@ -84,23 +84,23 @@ public:
 
   virtual bool expandPostRAPseudo(MachineInstr &MI) const override;
 
-  //  TriCoreCC::CondCodes getCondFromBranchOpc(unsigned Opc) const;
-  //  TriCoreCC::CondCodes getOppositeCondition(TriCoreCC::CondCodes CC) const;
-  //  const MCInstrDesc& getBrCond(TriCoreCC::CondCodes CC) const;
-  //  bool AnalyzeBranch(MachineBasicBlock &MBB,
-  //                       MachineBasicBlock *&TBB, MachineBasicBlock *&FBB,
-  //                       SmallVectorImpl<MachineOperand> &Cond,
-  //											 std::vector<unsigned>
-  //&s1, 											 std::vector<unsigned> &s2,
-  //                       bool AllowModify) const;
-  //
-  //	unsigned RemoveBranch(MachineBasicBlock &MBB) const override;
-  //	unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
-  //                          MachineBasicBlock *FBB, ArrayRef<MachineOperand>
-  //                          Cond,
-  //													std::vector<unsigned>
-  //&s1, 													std::vector<unsigned> &s2,
-  //                          DebugLoc DL) const ;
+  // Branch analysis / manipulation helpers.
+  TriCoreCC::CondCodes getCondFromBranchOpc(unsigned Opc) const;
+  TriCoreCC::CondCodes getOppositeCondition(TriCoreCC::CondCodes CC) const;
+  unsigned getBrCond(TriCoreCC::CondCodes CC) const;
+
+  bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
+                     MachineBasicBlock *&FBB,
+                     SmallVectorImpl<MachineOperand> &Cond,
+                     bool AllowModify) const override;
+
+  unsigned removeBranch(MachineBasicBlock &MBB,
+                        int *BytesRemoved = nullptr) const override;
+
+  unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+                        MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
+                        const DebugLoc &DL,
+                        int *BytesAdded = nullptr) const override;
 };
 } // namespace llvm
 

@@ -204,9 +204,13 @@ def SUBi64 : Pseudo<(outs ExtRegs:$d),
 let Defs = [A10], Uses = [A10] in
 def SUBAsc : SC<0x20, (outs), (ins u8imm:$const8), "sub.a %a10, $const8", []>;
 
-def SUBArr : RR<0x01, 0x02, (outs AddrRegs:$d), 
+def SUBArr : RR<0x01, 0x02, (outs AddrRegs:$d),
 		(ins AddrRegs:$s1, AddrRegs:$s2), "sub.a $d, $s1, $s2",
 		[(set AddrRegs:$d, (sub AddrRegs:$s1, AddrRegs:$s2) )]>;
+
+def SUBrr : RR<0x0B, 0x08, (outs DataRegs:$d),
+		(ins DataRegs:$s1, DataRegs:$s2), "sub $d, $s1, $s2",
+		[(set DataRegs:$d, (sub DataRegs:$s1, DataRegs:$s2))]>;
 
 def RSUBrc : RC<0x8B, 0x08, (outs DataRegs:$d), 
 							(ins DataRegs:$s1, s9imm:$const9) ,"rsub $d, $s1, $const9",
@@ -230,6 +234,10 @@ let Defs=[PSW] in {
 	def MULrc : RC<0x53, 0x001, (outs DataRegs:$d),
 			(ins DataRegs:$s1, s9imm:$const9),  "mul $d, $s1, $const9",
 			[(set DataRegs:$d, (mul DataRegs:$s1, immSExt9:$const9) )]>;
+
+	def MULUrr2 : RR2<0x73, 0x018, (outs ExtRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2), "mulu $d, $s1, $s2",
+			[(set ExtRegs:$d, (mul (zext DataRegs:$s1), (zext DataRegs:$s2)))]>;
 }
 //===----------------------------------------------------------------------===//
 // Logical Instructions
@@ -550,8 +558,16 @@ let isCall = 1, Defs = [A11], Uses = [A10] in
 
 def : Pat<(tricore_call (i32 tglobaladdr:$dst)),
 					(CALLb tglobaladdr:$dst)>;
-def : Pat<(i32 (TriCoreWrapper tglobaladdr:$dst)), 
+def : Pat<(i32 (TriCoreWrapper tglobaladdr:$dst)),
 		 (MOVi32 tglobaladdr:$dst)>;
+
+// Indirect call via address register (A[a]).
+let isCall = 1, Defs = [A11], Uses = [A10] in
+  def CALLIa : RR<0x2D, 0x00, (outs), (ins AddrRegs:$s1),
+    "calli $s1", [(tricore_call AddrRegs:$s1)]>;
+
+// Pattern for calls to external (runtime-library) symbols.
+def : Pat<(tricore_call texternalsym:$dst), (CALLb texternalsym:$dst)>;
 
 //===----------------------------------------------------------------------===//
 // Tentative Call Instructions
@@ -768,30 +784,32 @@ let isBarrier = 1 in {
 } // isBranch, isTerminator
 
 
-//multiclass BRANCH_SIGNED<bits<8> op1_brc, bits<8> op1_brr, 
-//												bit op2, string asmstring>
-//{
-//
-//		def brc: BRC<op2, op1_brc, (outs), 
-//					(ins jmptarget:$disp15, DataRegs:$s1, s4imm:$const4),
-//					!strconcat(asmstring, " $s1, $const4, $disp15"),
-//					[(TriCorebrcc  bb:$disp15, i32:$s1, immSExt4:$const4)]>;
-//			
-//		def brr: BRR<op2, op1_brr, (outs), 
-//					(ins jmptarget:$disp15, DataRegs:$s1, DataRegs:$s2),
-//					!strconcat(asmstring, " $s1, $s2, $disp15"),
-//					[(TriCorebrcc  bb:$disp15, i32:$s1, i32:$s2)]>;
-//}
-//
-//let isBranch =1, isTerminator = 1 in {
-//	
-//	defm JNE : BRANCH_SIGNED<0xdf, 0x5f, 0b1, "jne">;
-//	defm JEQ : BRANCH_SIGNED<0xdf, 0x5f, 0b0, "jeq">;
-//	defm JGE : BRANCH_SIGNED<0xff, 0x7f, 0b0, "jge">;
-//	defm JLT : BRANCH_SIGNED<0xbf, 0x3f, 0b0, "jlt">;
-//	
-//}// isBranch, isTerminator
-		
+// 32-bit conditional branch instructions (BRC: reg vs const4; BRR: reg vs reg).
+// Target MBB is operand 0, comparison operands follow — consistent with JNZsbr.
+// No DAG patterns here: current codegen uses CMP+JNZ/JZ; these forms are
+// available for insertBranch and future peephole optimisation passes.
+multiclass BRANCH_SIGNED<bits<8> op1_brc, bits<8> op1_brr,
+                         bit op2, string asmstr> {
+  // Register vs 4-bit immediate form.
+  def brc : BRC<op2, op1_brc, (outs),
+                (ins jmptarget:$dip15, DataRegs:$s1, s4imm:$const4),
+                !strconcat(asmstr, " $s1, $const4, $dip15"),
+                []>;
+  // Register vs register form.
+  def brr : BRR<op2, op1_brr, (outs),
+                (ins jmptarget:$dip15, DataRegs:$s1, DataRegs:$s2),
+                !strconcat(asmstr, " $s1, $s2, $dip15"),
+                []>;
+}
+
+let isBranch = 1, isTerminator = 1 in {
+  defm JEQ : BRANCH_SIGNED<0xDF, 0x5F, 0b0, "jeq">;
+  defm JNE : BRANCH_SIGNED<0xDF, 0x5F, 0b1, "jne">;
+  defm JGE : BRANCH_SIGNED<0xFF, 0x7F, 0b0, "jge">;
+  defm JLT : BRANCH_SIGNED<0xBF, 0x3F, 0b0, "jlt">;
+} // isBranch, isTerminator
+
+
 
 let usesCustomInserter = 1 in {
   def Select8  : Pseudo<(outs DataRegs:$dst),
