@@ -47,19 +47,22 @@ TriCoreInstrInfo::TriCoreInstrInfo()
 /// not, return 0.  This predicate must return 0 if the instruction has
 /// any side effects other than loading from the stack slot.
 unsigned
-TriCoreInstrInfo::isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex)
-                                          const{
-
-//	if ((MI->getOperand(1).isFI()) && (MI->getOperand(2).isImm())
-//			&& (MI->getOperand(2).getImm() == 0)) {
-//		FrameIndex = MI->getOperand(1).getIndex();
-//		return MI->getOperand(0).getReg();
-//	}
-//
-//	return 0;
-
-  assert(0 && "Unimplemented");
-  return 0;
+TriCoreInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
+                                       int &FrameIndex) const {
+  // LDWbo / LDAbo / LDDbo: (outs Rd), (ins [FI], 0)
+  switch (MI.getOpcode()) {
+  default:
+    return 0;
+  case TriCore::LDWbo:
+  case TriCore::LDAbo:
+  case TriCore::LDDbo:
+    if (MI.getOperand(1).isFI() && MI.getOperand(2).isImm() &&
+        MI.getOperand(2).getImm() == 0) {
+      FrameIndex = MI.getOperand(1).getIndex();
+      return MI.getOperand(0).getReg();
+    }
+    return 0;
+  }
 }
   
   /// isStoreToStackSlot - If the specified machine instruction is a direct
@@ -68,19 +71,21 @@ TriCoreInstrInfo::isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex)
   /// not, return 0.  This predicate must return 0 if the instruction has
   /// any side effects other than storing to the stack slot.
 unsigned TriCoreInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
-		int &FrameIndex) const {
-
-//	if ((MI->getOperand(0).isFI()) && (MI->getOperand(1).isImm())
-//			&& (MI->getOperand(1).getImm() == 0)) {
-//		FrameIndex = MI->getOperand(0).getIndex();
-//		return MI->getOperand(2).getReg();
-//	}
-//
-//	return 0;
-
-  assert(0 && "Unimplemented");
-  return 0;
-
+                                               int &FrameIndex) const {
+  // STWbo / STAbo / STDbo: (outs), (ins Rd, [FI], 0)
+  switch (MI.getOpcode()) {
+  default:
+    return 0;
+  case TriCore::STWbo:
+  case TriCore::STAbo:
+  case TriCore::STDbo:
+    if (MI.getOperand(1).isFI() && MI.getOperand(2).isImm() &&
+        MI.getOperand(2).getImm() == 0) {
+      FrameIndex = MI.getOperand(1).getIndex();
+      return MI.getOperand(0).getReg();
+    }
+    return 0;
+  }
 }
 
 void TriCoreInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
@@ -117,57 +122,74 @@ void TriCoreInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
 }
 
-//void TriCoreInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
-//                                         MachineBasicBlock::iterator I,
-//                                         unsigned SrcReg, bool isKill,
-//                                         int FrameIndex,
-//                                         const TargetRegisterClass *RC,
-//																				 const TargetRegisterInfo *TRI) const
-//{
-//	outs()<<"==TriCoreInstrInfo::storeRegToStackSlot==\n";
-//	DebugLoc DL;
-//	if (I != MBB.end()) DL = I->getDebugLoc();
-//	MachineFunction &MF = *MBB.getParent();
-//	MachineFrameInfo &MFI = *MF.getFrameInfo();
-//
-//	MachineMemOperand *MMO =
-//			MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(FrameIndex),
-//					MachineMemOperand::MOStore,
-//					MFI.getObjectSize(FrameIndex),
-//					MFI.getObjectAlignment(FrameIndex));
-//
-//
-//	BuildMI(MBB, I, I->getDebugLoc(), get(TriCore::STWbo))
-//	.addReg(SrcReg, getKillRegState(isKill))
-//	.addFrameIndex(FrameIndex).addImm(0).addMemOperand(MMO);
-//}
-//
-//void TriCoreInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
-//                                          MachineBasicBlock::iterator I,
-//                                          unsigned DestReg, int FrameIndex,
-//                                          const TargetRegisterClass *RC,
-//                                          const TargetRegisterInfo *TRI) const
-//{
-//	outs().changeColor(raw_ostream::BLUE,1);
-//	outs()<<"loadRegFromStackSlot\n";
-//	outs().changeColor(raw_ostream::WHITE,0);
-//	DebugLoc DL;
-//	if (I != MBB.end()) DL = I->getDebugLoc();
-//	MachineFunction &MF = *MBB.getParent();
-//	MachineFrameInfo &MFI = *MF.getFrameInfo();
-//
-//	// issues the machine instruction “ld $r, offset($sp)”
-//	// to load incoming arguments from stack frame offset
-//	MachineMemOperand *MMO =
-//			MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(FrameIndex),
-//					MachineMemOperand::MOLoad,
-//					MFI.getObjectSize(FrameIndex),
-//					MFI.getObjectAlignment(FrameIndex));
-//
-//
-//	BuildMI(MBB, I, I->getDebugLoc(), get(TriCore::LDWbo), DestReg)
-//      .addFrameIndex(FrameIndex).addImm(0).addMemOperand(MMO);
-//}
+void TriCoreInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
+                                            MachineBasicBlock::iterator I,
+                                            Register SrcReg, bool isKill,
+                                            int FrameIndex,
+                                            const TargetRegisterClass *RC,
+                                            const TargetRegisterInfo *TRI,
+                                            Register VReg) const {
+  DebugLoc DL;
+  if (I != MBB.end())
+    DL = I->getDebugLoc();
+  MachineFunction &MF = *MBB.getParent();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  MachineMemOperand *MMO = MF.getMachineMemOperand(
+      MachinePointerInfo::getFixedStack(MF, FrameIndex),
+      MachineMemOperand::MOStore, MFI.getObjectSize(FrameIndex),
+      MFI.getObjectAlign(FrameIndex));
+
+  unsigned Opc;
+  if (TriCore::DataRegsRegClass.hasSubClassEq(RC))
+    Opc = TriCore::STWbo;
+  else if (TriCore::AddrRegsRegClass.hasSubClassEq(RC))
+    Opc = TriCore::STAbo;
+  else if (TriCore::ExtRegsRegClass.hasSubClassEq(RC))
+    Opc = TriCore::STDbo;
+  else
+    llvm_unreachable(“Cannot store register class to stack slot”);
+
+  BuildMI(MBB, I, DL, get(Opc))
+      .addReg(SrcReg, getKillRegState(isKill))
+      .addFrameIndex(FrameIndex)
+      .addImm(0)
+      .addMemOperand(MMO);
+}
+
+void TriCoreInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                             MachineBasicBlock::iterator I,
+                                             Register DestReg, int FrameIndex,
+                                             const TargetRegisterClass *RC,
+                                             const TargetRegisterInfo *TRI,
+                                             Register VReg) const {
+  DebugLoc DL;
+  if (I != MBB.end())
+    DL = I->getDebugLoc();
+  MachineFunction &MF = *MBB.getParent();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  MachineMemOperand *MMO = MF.getMachineMemOperand(
+      MachinePointerInfo::getFixedStack(MF, FrameIndex),
+      MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIndex),
+      MFI.getObjectAlign(FrameIndex));
+
+  unsigned Opc;
+  if (TriCore::DataRegsRegClass.hasSubClassEq(RC))
+    Opc = TriCore::LDWbo;
+  else if (TriCore::AddrRegsRegClass.hasSubClassEq(RC))
+    Opc = TriCore::LDAbo;
+  else if (TriCore::ExtRegsRegClass.hasSubClassEq(RC))
+    Opc = TriCore::LDDbo;
+  else
+    llvm_unreachable(“Cannot load register class from stack slot”);
+
+  BuildMI(MBB, I, DL, get(Opc), DestReg)
+      .addFrameIndex(FrameIndex)
+      .addImm(0)
+      .addMemOperand(MMO);
+}
+
 
 //TriCoreCC::CondCodes
 //						TriCoreInstrInfo::getCondFromBranchOpc(unsigned Opc) const {

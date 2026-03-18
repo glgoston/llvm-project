@@ -162,7 +162,7 @@ let Defs = [PSW],	Uses = [PSW] in {
 			[(set DataRegs:$d, (subc DataRegs:$s1, DataRegs:$s2)),
 			 (implicit PSW)]>;
 
-	def SUBXrr : RR<0x0B, 0x04, (outs DataRegs:$d), 
+	def SUBXrr : RR<0x0B, 0x0C, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
 			"subx $d, $s1, $s2",
 			[(set DataRegs:$d, (sube DataRegs:$s1, DataRegs:$s2)),
@@ -455,10 +455,10 @@ def LDWbo : BOL<0x19, (outs DataRegs:$d),
 		 "ld.w $d, $memri",
 		 [(set DataRegs:$d, (load addr:$memri))]>{ let mayLoad = 1; }
 
-//def LDAbo : BOL<0x99, (outs AddrRegs:$d),
-//		 (ins memsrc:$memri),
-//		 "ld.a $d, $memri",
-//		 [(set AddrRegs:$d, (load addr:$memri))]>{ let mayLoad = 1; }
+def LDAbo : BOL<0x99, (outs AddrRegs:$d),
+		 (ins memsrc:$memri),
+		 "ld.a $d, $memri",
+		 [(set AddrRegs:$d, (load addr:$memri))]>{ let mayLoad = 1; }
 
 def : Pat<(extloadi8 addr:$src), (LDBbo addr:$src)>;
 def : Pat<(extloadi16 addr:$src), (LDHbo addr:$src)>;
@@ -484,7 +484,7 @@ let Predicates = [isnotPointer] in {
 			 (STWbo (EXTRACT_SUBREG ExtRegs:$d, subreg_even), addr:$memri)>;
 	
 	def : Pat<(truncstorei8 ExtRegs:$d, addr:$memri), 
-				 (STWbo (ANDrc (EXTRACT_SUBREG ExtRegs:$d, subreg_even), (i32 255)), addr:$memri)>;	
+				 (STBbo (ANDrc (EXTRACT_SUBREG ExtRegs:$d, subreg_even), (i32 255)), addr:$memri)>;
 } // let Predicates = [isnotPointer]
 
 
@@ -833,18 +833,15 @@ def : Pat<(i64 imm:$src),
           		           (MOVi32( HI32 imm:$src)), subreg_odd)>;
 
 def INVERT_VAL : SDNodeXForm<imm, [{
-	outs() << "vall: "<< N->getZExtValue() <<"\n";
 	return CurDAG->getTargetConstant(-N->getZExtValue(), SDLoc(N), MVT::i32);
 }]>;
 
 
 def SHIFTAMT : SDNodeXForm<imm, [{
-	outs() << "vall: "<< N->getZExtValue() <<"\n";
 	return CurDAG->getTargetConstant(N->getZExtValue() - 32, SDLoc(N), MVT::i32);
 }]>;
 
 def SHIFTAMT_POS : SDNodeXForm<imm, [{
-	outs() << "vall: "<< N->getZExtValue() <<"\n";
 	return CurDAG->getTargetConstant((32 - N->getZExtValue()), SDLoc(N), MVT::i32);
 }]>;
 
@@ -861,7 +858,6 @@ def imm32_64 : PatLeaf<(imm),
 def imm0_31 : PatLeaf<(imm),
 [{
   uint64_t val = N->getZExtValue();
-	outs() <<"imm0_31: " << val << "\n";
   return val > 0 && val < 32;
 }]>;
 
@@ -924,11 +920,11 @@ def : Pat<(sext DataRegs:$src),
 
 // sext_inreg for i16
 def : Pat<(sext_inreg DataRegs:$src, i16),
-          (MOVrr (i32 DataRegs:$src))>;
+          (EXTRrrpw DataRegs:$src, (i32 0), (i32 16))>;
 
 // sext_inreg for i8
 def : Pat<(sext_inreg DataRegs:$src, i8),
-          (MOVrr (i32 DataRegs:$src))>;
+          (EXTRrrpw DataRegs:$src, (i32 0), (i32 8))>;
 
 // sext_inreg from i8 to i64
 def : Pat<(sext_inreg ExtRegs:$src, i8),
@@ -948,17 +944,15 @@ def : Pat<(sext_inreg ExtRegs:$src, i16),
 
 // anyext
 def : Pat<(anyext DataRegs:$src),
-		(INSERT_SUBREG (i64 (IMPLICIT_DEF)),  
-				(SHArc ( EXTRACT_SUBREG (INSERT_SUBREG (i64 (IMPLICIT_DEF)) ,
-						(i32 DataRegs:$src), subreg_even), subreg_even) 
-						, (i32 -31)), subreg_odd)>;
+		(INSERT_SUBREG (i64 (INSERT_SUBREG (i64 (IMPLICIT_DEF)),
+				(i32 DataRegs:$src), subreg_even)),
+				(MOVrlc (i32 0)), subreg_odd)>;
 
 // zext
 def : Pat<(zext DataRegs:$src),
-		(INSERT_SUBREG (i64 (IMPLICIT_DEF)),  
-				(SHArc ( EXTRACT_SUBREG (INSERT_SUBREG (i64 (IMPLICIT_DEF)) ,
-						(i32 DataRegs:$src), subreg_even), subreg_even) 
-						, (i32 -31)), subreg_odd)>;		
+		(INSERT_SUBREG (i64 (INSERT_SUBREG (i64 (IMPLICIT_DEF)),
+				(i32 DataRegs:$src), subreg_even)),
+				(MOVrlc (i32 0)), subreg_odd)>;
 
 // This extracts the odd register from an extended register
 // odd_reg = (Extended Register >> 32)

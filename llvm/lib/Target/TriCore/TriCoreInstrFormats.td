@@ -132,7 +132,7 @@ class SR<bits<8> op1, bits<4> op2, dag outs, dag ins, string asmstr,
   bits<4> d;
   
   let Inst{15-12} = op2;
-  let Inst{11-8} = s1;
+  let Inst{11-8} = d;
 }
 
 //===----------------------------------------------------------------------===//
@@ -228,7 +228,7 @@ class BRR<bit op2, bits<8> op1, dag outs, dag ins, string asmstr,
 	
 	let Inst{7-0} = op1;
 	let Inst{11-8} = s1;
-	let Inst{15-12} = s1;
+	let Inst{15-12} = s2;
 	let Inst{30-16} = dip15;
 	let Inst{31} = op2;
 }

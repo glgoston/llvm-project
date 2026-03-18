@@ -58,7 +58,8 @@ uint64_t TriCoreFrameLowering::computeStackSize(MachineFunction &MF) const {
 // or the number of the register where the offset is materialized.
 static unsigned materializeOffset(MachineFunction &MF, MachineBasicBlock &MBB,
                                   MachineBasicBlock::iterator MBBI,
-                                  unsigned Offset) {
+                                  unsigned Offset,
+                                  unsigned ScratchReg = TriCore::A12) {
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
   DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
   const uint64_t MaxSubImm = 0xfff;
@@ -68,22 +69,19 @@ static unsigned materializeOffset(MachineFunction &MF, MachineBasicBlock &MBB,
     return 0;
   } else {
     // The stack offset does not fit in the ADD/SUB instruction.
-    // Materialize the offset using MOVLO/MOVHI.
-    // FIXME: See to this code, in case we ever get a very large stack.
-    // 		    I guess it should create an error someday.
-    unsigned OffsetReg = TriCore::A14;
+    // Materialize the offset using MOVLO/MOVHI into ScratchReg.
     unsigned OffsetLo = (unsigned)(Offset & 0xffff);
     unsigned OffsetHi = (unsigned)((Offset & 0xffff0000) >> 16);
-    BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVrlc), OffsetReg) // MOVLOi16
+    BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVrlc), ScratchReg)
         .addImm(OffsetLo)
         .setMIFlag(MachineInstr::FrameSetup);
     if (OffsetHi) {
-      BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVHrlc), OffsetReg)
-          .addReg(OffsetReg)
+      BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVHrlc), ScratchReg)
+          .addReg(ScratchReg)
           .addImm(OffsetHi)
           .setMIFlag(MachineInstr::FrameSetup);
     }
-    return OffsetReg;
+    return ScratchReg;
   }
 }
 
@@ -125,7 +123,47 @@ void TriCoreFrameLowering::emitPrologue(MachineFunction &MF,
 }
 
 void TriCoreFrameLowering::emitEpilogue(MachineFunction &MF,
-                                        MachineBasicBlock &MBB) const {}
+                                        MachineBasicBlock &MBB) const {
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
+  DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
+  uint64_t StackSize = computeStackSize(MF);
+  if (!StackSize)
+    return;
+
+  unsigned StackReg = TriCore::A10;
+
+  if (hasFP(MF)) {
+    // Frame pointer is A14: restore SP from FP in a single instruction.
+    BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVAArr), StackReg)
+        .addReg(TriCore::A14)
+        .setMIFlag(MachineInstr::FrameDestroy);
+    return;
+  }
+
+  // No frame pointer: add StackSize back to SP.
+  unsigned OffsetReg = materializeOffset(MF, MBB, MBBI, (unsigned)StackSize);
+  if (OffsetReg) {
+    BuildMI(MBB, MBBI, dl, TII.get(TriCore::ADDArr), StackReg)
+        .addReg(StackReg)
+        .addReg(OffsetReg)
+        .setMIFlag(MachineInstr::FrameDestroy);
+  } else {
+    // StackSize fits in a 9-bit signed immediate: use ADDrc on D15,
+    // then convert to address register A12 and add.a to SP.
+    BuildMI(MBB, MBBI, dl, TII.get(TriCore::ADDrc), TriCore::D15)
+        .addReg(TriCore::D15, RegState::Undef)
+        .addImm(StackSize)
+        .setMIFlag(MachineInstr::FrameDestroy);
+    BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVArr), TriCore::A12)
+        .addReg(TriCore::D15)
+        .setMIFlag(MachineInstr::FrameDestroy);
+    BuildMI(MBB, MBBI, dl, TII.get(TriCore::ADDArr), StackReg)
+        .addReg(StackReg)
+        .addReg(TriCore::A12)
+        .setMIFlag(MachineInstr::FrameDestroy);
+  }
+}
 
 // This function eliminates ADJCALLSTACKDOWN, ADJCALLSTACKUP pseudo
 // instructions

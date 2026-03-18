@@ -1,4 +1,4 @@
-//===-- TriCoreRegisterInfo.cpp - LEG Register Information ----------------===//
+//===-- TriCoreRegisterInfo.cpp - TriCore Register Information ------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -44,8 +44,7 @@ TriCoreRegisterInfo::TriCoreRegisterInfo()
 
 const uint16_t *
 TriCoreRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  static const uint16_t CalleeSavedRegs[] = {0};
-  return CalleeSavedRegs;
+  return CSR_TriCore_SaveList;
 }
 
 BitVector
@@ -54,17 +53,23 @@ TriCoreRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   Reserved.set(TriCore::PC);
   Reserved.set(TriCore::PCXI);
-  Reserved.set(TriCore::A10);
-  Reserved.set(TriCore::A11);
+  Reserved.set(TriCore::A10); // stack pointer
+  Reserved.set(TriCore::A11); // return address
   Reserved.set(TriCore::PSW);
   Reserved.set(TriCore::FCX);
+  // A0, A1: system global-address registers (EABI reserved)
+  // A8, A9: OS/application global-address registers (EABI reserved)
+  Reserved.set(TriCore::A0);
+  Reserved.set(TriCore::A1);
+  Reserved.set(TriCore::A8);
+  Reserved.set(TriCore::A9);
   return Reserved;
 }
 
 const uint32_t *
 TriCoreRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                                           CallingConv::ID) const {
-  return CC_Save_RegMask;
+  return CSR_TriCore_RegMask;
 }
 
 bool TriCoreRegisterInfo::requiresRegisterScavenging(

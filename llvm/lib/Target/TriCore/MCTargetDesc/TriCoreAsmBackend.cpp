@@ -44,7 +44,6 @@ public:
 static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
                                  MCContext *Ctx = NULL) {
   unsigned Kind = Fixup.getKind();
-  outs() << "Fixup: " << Fixup.getKind() << "\n";
   switch (Kind) {
   default:
     llvm_unreachable("Unknown fixup kind!");

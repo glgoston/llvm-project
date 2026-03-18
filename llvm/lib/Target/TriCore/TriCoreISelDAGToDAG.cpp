@@ -20,7 +20,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "TriCoreCallingConvHook.h"
 #include "TriCoreInstrInfo.h"
 
 #define DEBUG_TYPE "tricore-isel"
@@ -264,25 +263,7 @@ bool TriCoreDAGToDAGISel::SelectAddr_new(SDValue N, SDValue &Base,
 
 bool TriCoreDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Base,
                                      SDValue &Offset) {
-
   return SelectAddr_new(Addr, Base, Offset);
-
-  if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
-    EVT PtrVT = getTargetLowering()->getPointerTy(TM.createDataLayout());
-    Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), PtrVT);
-    Offset = CurDAG->getTargetConstant(0, Addr, MVT::i32);
-    return true;
-  }
-
-  if (Addr.getOpcode() == ISD::TargetExternalSymbol ||
-      Addr.getOpcode() == ISD::TargetGlobalAddress ||
-      Addr.getOpcode() == ISD::TargetGlobalTLSAddress) {
-    return false; // direct calls.
-  }
-
-  Base = Addr;
-  Offset = CurDAG->getTargetConstant(0, Addr, MVT::i32);
-  return true;
 }
 
 // Returns one plus the index of the least significant
@@ -328,13 +309,10 @@ SDNode *TriCoreDAGToDAGISel::SelectConstant(SDNode *N) {
      * pseudo moves.
      */
 
-    outs() << ConstVal->getValueType(0).getEVTString() << "\n";
     uint32_t lowerByte = ImmVal & 0x00000000ffffffff;
     uint32_t higherByte = ImmVal >> 32;
     uint64_t width = 0;
 
-    outs() << "higherByte: " << higherByte << "\n";
-    outs() << "lowerByte: " << lowerByte << "\n";
     if (ImmVal == 0) {
       SDValue _constVal = CurDAG->getTargetConstant(0, N, MVT::i32);
       SDValue _width = CurDAG->getTargetConstant(0, N, MVT::i32);
@@ -345,9 +323,8 @@ SDNode *TriCoreDAGToDAGISel::SelectConstant(SDNode *N) {
 
     // In case both bytes contain set bits then exit
     if (ImmSVal < 0 || (higherByte != 0 && lowerByte != 0)) {
-      outs() << "exit\n";
       SelectCode(N);
-      return N;
+      return nullptr;
     } else if (higherByte == 0 && lowerByte != 0) {
       uint64_t posLSB = getFFS(lowerByte) - 1;
       uint64_t numSetBits = getNumSetBits(lowerByte);
@@ -355,20 +332,18 @@ SDNode *TriCoreDAGToDAGISel::SelectConstant(SDNode *N) {
       // In case the patch of set bits is not a mask then exit
       if (numSetBits != numConsecBits) {
         SelectCode(N);
-        return N;
+        return nullptr;
       }
 
       // In case the mask for the lower byte is > 0xf we exit
       if (numConsecBits > 4) {
         SelectCode(N);
-        return N;
+        return nullptr;
       }
 
       // In case we are dealing with the lower byte,
       // only Const4Val is set
       int64_t Const4Val = ipow(numConsecBits) - 1;
-      outs() << "posLSB: " << posLSB << "\n";
-      outs() << "ConstVal: " << Const4Val << "\n";
 
       SDValue _constVal = CurDAG->getTargetConstant(Const4Val, N, MVT::i32);
       SDValue _width = CurDAG->getTargetConstant(width, N, MVT::i32);
@@ -380,18 +355,16 @@ SDNode *TriCoreDAGToDAGISel::SelectConstant(SDNode *N) {
       uint64_t posLSB = getFFS(higherByte) - 1;
       uint64_t numSetBits = getNumSetBits(higherByte);
       uint64_t numConsecBits = getNumConsecutiveOnes(higherByte);
-      outs() << "posLSB: " << posLSB << "\n";
-      outs() << "numConsecBits: " << numConsecBits << "\n";
       // In case the patch of set bits is not a mask then exit
       if (numSetBits != numConsecBits) {
         SelectCode(N);
-        return N;
+        return nullptr;
       }
 
       // As per data sheet: (pos  + width)>31 is undefined
       if ((posLSB + numConsecBits) > 31) {
         SelectCode(N);
-        return N;
+        return nullptr;
       }
 
       SDValue _constVal = CurDAG->getTargetConstant(0, N, MVT::i32);

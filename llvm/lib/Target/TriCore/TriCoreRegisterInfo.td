@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//include "llvm/Target/Target.td"  // Include for debuging purpose only
 //===----------------------------------------------------------------------===//
 //  Declarations that describe the TriCore register file
 //===----------------------------------------------------------------------===//
@@ -36,7 +35,7 @@ class TriCorePSReg<bits<16> num, string n> : TriCoreReg<n> {
 class TriCoreRegWithSubregs<bits<16> num, string n, list<Register> subregs>
 : RegisterWithSubRegs<n, subregs> {
 	field bits<16> Num;
-	
+
 	let Num = num;
 	let Namespace = "TriCore";
 }
@@ -44,101 +43,103 @@ class TriCoreRegWithSubregs<bits<16> num, string n, list<Register> subregs>
 //===----------------------------------------------------------------------===//
 //@Registers
 //===----------------------------------------------------------------------===//
-// The register string, such as "D0" or "D13" will show on "llvm-objdump -d"
+// TriCore EABI DWARF register numbers:
+//   D0-D15  -> DWARF 0-15
+//   A0-A15  -> DWARF 16-31
+//   E0-E14  -> DWARF 32-39  (defined below with the extended registers)
+//   PSW     -> DWARF 40
+//   PCXI    -> DWARF 41
+//   PC      -> DWARF 42
+//   FCX     -> DWARF 43
 
+def D0  : TriCoreDataReg< 0, "D0">,  DwarfRegNum<[0]>;
+def D1  : TriCoreDataReg< 1, "D1">,  DwarfRegNum<[1]>;
+def D2  : TriCoreDataReg< 2, "D2">,  DwarfRegNum<[2]>;
+def D3  : TriCoreDataReg< 3, "D3">,  DwarfRegNum<[3]>;
+def D4  : TriCoreDataReg< 4, "D4">,  DwarfRegNum<[4]>;
+def D5  : TriCoreDataReg< 5, "D5">,  DwarfRegNum<[5]>;
+def D6  : TriCoreDataReg< 6, "D6">,  DwarfRegNum<[6]>;
+def D7  : TriCoreDataReg< 7, "D7">,  DwarfRegNum<[7]>;
+def D8  : TriCoreDataReg< 8, "D8">,  DwarfRegNum<[8]>;
+def D9  : TriCoreDataReg< 9, "D9">,  DwarfRegNum<[9]>;
+def D10 : TriCoreDataReg<10, "D10">, DwarfRegNum<[10]>;
+def D11 : TriCoreDataReg<11, "D11">, DwarfRegNum<[11]>;
+def D12 : TriCoreDataReg<12, "D12">, DwarfRegNum<[12]>;
+def D13 : TriCoreDataReg<13, "D13">, DwarfRegNum<[13]>;
+def D14 : TriCoreDataReg<14, "D14">, DwarfRegNum<[14]>;
+def D15 : TriCoreDataReg<15, "D15">, DwarfRegNum<[15]>;
 
-//16 Registers from the D Register banks
-//16 Registers from the A Register banks
-//foreach i = 0-15 in {
-//  def D#i : TriCoreDataReg<i, "D"#i>, DwarfRegNum<[#i]>;
-//  def A#i : TriCoreAdrReg<i, "A"#i>;
-//}
+def A0  : TriCoreAdrReg< 0, "A0">,  DwarfRegNum<[16]>;
+def A1  : TriCoreAdrReg< 1, "A1">,  DwarfRegNum<[17]>;
+def A2  : TriCoreAdrReg< 2, "A2">,  DwarfRegNum<[18]>;
+def A3  : TriCoreAdrReg< 3, "A3">,  DwarfRegNum<[19]>;
+def A4  : TriCoreAdrReg< 4, "A4">,  DwarfRegNum<[20]>;
+def A5  : TriCoreAdrReg< 5, "A5">,  DwarfRegNum<[21]>;
+def A6  : TriCoreAdrReg< 6, "A6">,  DwarfRegNum<[22]>;
+def A7  : TriCoreAdrReg< 7, "A7">,  DwarfRegNum<[23]>;
+def A8  : TriCoreAdrReg< 8, "A8">,  DwarfRegNum<[24]>;
+def A9  : TriCoreAdrReg< 9, "A9">,  DwarfRegNum<[25]>;
+def A10 : TriCoreAdrReg<10, "A10">, DwarfRegNum<[26]>;
+def A11 : TriCoreAdrReg<11, "A11">, DwarfRegNum<[27]>;
+def A12 : TriCoreAdrReg<12, "A12">, DwarfRegNum<[28]>;
+def A13 : TriCoreAdrReg<13, "A13">, DwarfRegNum<[29]>;
+def A14 : TriCoreAdrReg<14, "A14">, DwarfRegNum<[30]>;
+def A15 : TriCoreAdrReg<15, "A15">, DwarfRegNum<[31]>;
 
-def D0 : TriCoreDataReg<0, "D0">;
-def D1 : TriCoreDataReg<1, "D1">;
-def D2 : TriCoreDataReg<2, "D2">;
-def D3 : TriCoreDataReg<3, "D3">;
-def D4 : TriCoreDataReg<4, "D4">;
-def D5 : TriCoreDataReg<5, "D5">;
-def D6 : TriCoreDataReg<6, "D6">;
-def D7 : TriCoreDataReg<7, "D7">;
-def D8 : TriCoreDataReg<8, "D8">;
-def D9 : TriCoreDataReg<9, "D9">;
-def D10 : TriCoreDataReg<10, "D10">;
-def D11 : TriCoreDataReg<11, "D11">;
-def D12 : TriCoreDataReg<12, "D12">;
-def D13 : TriCoreDataReg<13, "D13">;
-def D14 : TriCoreDataReg<14, "D14">;
-def D15 : TriCoreDataReg<15, "D15">;
-
-
-def A0 : TriCoreAdrReg<0, "A0">;
-def A1 : TriCoreAdrReg<1, "A1">;
-def A2 : TriCoreAdrReg<2, "A2">;
-def A3 : TriCoreAdrReg<3, "A3">;
-def A4 : TriCoreAdrReg<4, "A4">;
-def A5 : TriCoreAdrReg<5, "A5">;
-def A6 : TriCoreAdrReg<6, "A6">;
-def A7 : TriCoreAdrReg<7, "A7">;
-def A8 : TriCoreAdrReg<8, "A8">;
-def A9 : TriCoreAdrReg<9, "A9">;
-def A10 : TriCoreAdrReg<10, "A10">;
-def A11 : TriCoreAdrReg<11, "A11">;
-def A12 : TriCoreAdrReg<12, "A12">;
-def A13 : TriCoreAdrReg<13, "A13">;
-def A14 : TriCoreAdrReg<14, "A14">;
-def A15 : TriCoreAdrReg<15, "A15">;
-
-
-def subreg_even: SubRegIndex<32> {let Namespace = "TriCore";}
-def subreg_odd : SubRegIndex<32> {let Namespace = "TriCore";}
+// subreg_even: lower 32-bit word, at bit-offset 0.
+// subreg_odd : upper 32-bit word, at bit-offset 32.
+def subreg_even : SubRegIndex<32, 0>  { let Namespace = "TriCore"; }
+def subreg_odd  : SubRegIndex<32, 32> { let Namespace = "TriCore"; }
 
 //Program Status Information Registers
-def PSW  : TriCorePSReg<0, "PSW">, DwarfRegNum<[40]>;
+def PSW  : TriCorePSReg<0, "PSW">,  DwarfRegNum<[40]>;
 def PCXI : TriCorePSReg<1, "PCXI">, DwarfRegNum<[41]>;
-def PC   : TriCorePSReg<2, "PC">, DwarfRegNum<[42]>;
-def FCX  : TriCorePSReg<3, "FCX">, DwarfRegNum<[43]>;
+def PC   : TriCorePSReg<2, "PC">,   DwarfRegNum<[42]>;
+def FCX  : TriCorePSReg<3, "FCX">,  DwarfRegNum<[43]>;
 
 
 //Extended 64-bit registers
 let SubRegIndices = [subreg_even, subreg_odd] in {
-	def E0 : TriCoreRegWithSubregs<0,   "e0",  [D0,D1] >, DwarfRegNum<[32]>;
-	def E2 : TriCoreRegWithSubregs<2,   "e2",  [D2,D3] >, DwarfRegNum<[33]>;
-	def E4 : TriCoreRegWithSubregs<4,   "e4",  [D4,D5] >, DwarfRegNum<[34]>;
-	def E6 : TriCoreRegWithSubregs<6,   "e6",  [D6,D7] >, DwarfRegNum<[35]>;
-	def E8 : TriCoreRegWithSubregs<8,   "e8",  [D8,D9] >, DwarfRegNum<[36]>;
-	def E10 : TriCoreRegWithSubregs<10, "e10", [D10,D11] >, DwarfRegNum<[37]>;
-	def E12 : TriCoreRegWithSubregs<12, "e12", [D12,D13] >, DwarfRegNum<[38]>;
-	def E14 : TriCoreRegWithSubregs<14, "e14", [D14,D15] >, DwarfRegNum<[39]>;
+	def E0  : TriCoreRegWithSubregs< 0, "e0",  [D0, D1]   >, DwarfRegNum<[32]>;
+	def E2  : TriCoreRegWithSubregs< 2, "e2",  [D2, D3]   >, DwarfRegNum<[33]>;
+	def E4  : TriCoreRegWithSubregs< 4, "e4",  [D4, D5]   >, DwarfRegNum<[34]>;
+	def E6  : TriCoreRegWithSubregs< 6, "e6",  [D6, D7]   >, DwarfRegNum<[35]>;
+	def E8  : TriCoreRegWithSubregs< 8, "e8",  [D8, D9]   >, DwarfRegNum<[36]>;
+	def E10 : TriCoreRegWithSubregs<10, "e10", [D10, D11] >, DwarfRegNum<[37]>;
+	def E12 : TriCoreRegWithSubregs<12, "e12", [D12, D13] >, DwarfRegNum<[38]>;
+	def E14 : TriCoreRegWithSubregs<14, "e14", [D14, D15] >, DwarfRegNum<[39]>;
 }
 
 
 //===----------------------------------------------------------------------===//
 //@Register Classes
 //===----------------------------------------------------------------------===//
+// Allocation order: caller-saved (D0-D7) first (cheap to allocate), then
+// callee-saved (D8-D14). D15 is last — it is an implicit operand for many
+// 16-bit instructions and should not be allocated unless nothing else is free.
 
 def DataRegs : RegisterClass<"TriCore", [i32], 32, (add
-		// Implict Data
-		D15,
-		// Mostly Used
 		D2, D3,
 		D4, D5, D6, D7,
+		D0, D1,
 		D8, D9, D10, D11,
 		D12, D13, D14,
-		// Others - Compiler Speicific
-		D0, D1)>;
+		// Implicit data register — allocate last
+		D15)>;
 
 def AddrRegs : RegisterClass<"TriCore", [i32], 32, (add
-		// Implicit Address
-		A15,	
-		// Others
-		A2, A3, A4, A5, A6,
-		A7, A12, A13, A14,
-		// Stack Pointer
+		// Caller-saved address registers
+		A2, A3, A4, A5, A6, A7,
+		// Callee-saved scratch
+		A12, A13, A14,
+		// Frame Pointer (callee-saved)
+		// A15 is implicit (like D15), allocate near end
+		A15,
+		// Stack Pointer (reserved)
 		A10,
-		// Return Address
+		// Return Address (reserved)
 		A11,
-		// Global Address
+		// System/global registers (reserved: A0, A1, A8, A9)
 		A0, A1, A8, A9)>;
 
 def ExtRegs : RegisterClass<"TriCore", [i64], 32, (add
