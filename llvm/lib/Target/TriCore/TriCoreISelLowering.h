@@ -115,6 +115,14 @@ private:
 
   // Lower Shift Instruction
   SDValue LowerShifts(SDValue Op, SelectionDAG &DAG) const;
+
+  // Lower VA_START for vararg support
+  SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
+
+public:
+  std::pair<unsigned, const TargetRegisterClass *>
+  getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                               StringRef Constraint, MVT VT) const override;
 };
 } // namespace llvm
 

@@ -110,6 +110,16 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
   setOperationAction(ISD::SREM, MVT::i32, Expand);
   setOperationAction(ISD::UREM, MVT::i32, Expand);
 
+  // Enable jump tables for switch statements with >= 4 cases.
+  setMinimumJumpTableEntries(4);
+
+  // Varargs: VASTART needs custom lowering so we can record the vararg area.
+  setOperationAction(ISD::VASTART, MVT::Other, Custom);
+  // VAARG/VACOPY/VAEND use the standard expansion.
+  setOperationAction(ISD::VAARG,   MVT::Other, Expand);
+  setOperationAction(ISD::VACOPY,  MVT::Other, Expand);
+  setOperationAction(ISD::VAEND,   MVT::Other, Expand);
+
   // for (MVT VT : MVT::integer_valuetypes())
   // setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i16,   Custom);
 }
@@ -131,6 +141,8 @@ SDValue TriCoreTargetLowering::LowerOperation(SDValue Op,
   case ISD::SRL:
   case ISD::SRA:
     return LowerShifts(Op, DAG);
+  case ISD::VASTART:
+    return LowerVASTART(Op, DAG);
     // case ISD::SIGN_EXTEND:      	return LowerSIGN_EXTEND(Op, DAG);
     // case ISD::SIGN_EXTEND_INREG:  return LowerSIGN_EXTEND_INREG(Op, DAG);
   }
@@ -398,6 +410,35 @@ SDValue TriCoreTargetLowering::LowerGlobalAddress(SDValue Op,
   //  return DAG.getNode(TriCoreISD::Wrapper, Op, VT, TargetAddr);
 }
 
+SDValue TriCoreTargetLowering::LowerVASTART(SDValue Op,
+                                             SelectionDAG &DAG) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+  TriCoreFunctionInfo *FuncInfo = MF.getInfo<TriCoreFunctionInfo>();
+  SDLoc dl(Op);
+
+  // va_start stores a pointer to the first variadic argument into the
+  // va_list object.  Frame pointer + VarArgsFrameOffset gives that address.
+  SDValue FI = DAG.getFrameIndex(FuncInfo->getVarArgsFrameOffset(),
+                                  getPointerTy(DAG.getDataLayout()));
+  const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
+  return DAG.getStore(Op.getOperand(0), dl, FI, Op.getOperand(1),
+                      MachinePointerInfo(SV));
+}
+
+std::pair<unsigned, const TargetRegisterClass *>
+TriCoreTargetLowering::getRegForInlineAsmConstraint(
+    const TargetRegisterInfo *TRI, StringRef Constraint, MVT VT) const {
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    case 'd': return std::make_pair(0U, &TriCore::DataRegsRegClass);
+    case 'a': return std::make_pair(0U, &TriCore::AddrRegsRegClass);
+    case 'e': return std::make_pair(0U, &TriCore::ExtRegsRegClass);
+    case 'r': return std::make_pair(0U, &TriCore::DataRegsRegClass);
+    }
+  }
+  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
 MachineBasicBlock *TriCoreTargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *BB) const {
   unsigned Opc = MI.getOpcode();
@@ -586,8 +627,6 @@ SDValue TriCoreTargetLowering::LowerCallResult(
     SDValue Chain, SDValue InGlue, CallingConv::ID CallConv, bool isVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, SDLoc dl, SelectionDAG &DAG,
     SmallVectorImpl<SDValue> &InVals) const {
-  assert(!isVarArg && "Unsupported");
-
   // Assign locations to each value returned by this call.
   // RetCC_TriCore already handles pointer returns via CCIfPtr → A2, so no
   // manual override is needed.
@@ -621,8 +660,6 @@ SDValue TriCoreTargetLowering::LowerFormalArguments(
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
   MachineFunction &MF = DAG.getMachineFunction();
   MachineRegisterInfo &RegInfo = MF.getRegInfo();
-
-  assert(!isVarArg && "VarArg not supported");
 
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
@@ -694,6 +731,15 @@ SDValue TriCoreTargetLowering::LowerFormalArguments(
     SDValue Load =
         DAG.getLoad(VA.getValVT(), dl, Chain, FIPtr, MachinePointerInfo());
     InVals.push_back(Load);
+  }
+
+  // For vararg functions, record the frame index of the first variadic
+  // argument.  va_start uses this to initialise the va_list pointer.
+  if (isVarArg) {
+    TriCoreFunctionInfo *FuncInfo = MF.getInfo<TriCoreFunctionInfo>();
+    int VarArgsFI = MF.getFrameInfo().CreateFixedObject(
+        4, CCInfo.getNextStackOffset(), true);
+    FuncInfo->setVarArgsFrameOffset(VarArgsFI);
   }
 
   return Chain;

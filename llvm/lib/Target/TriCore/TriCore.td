@@ -36,7 +36,26 @@ def TriCoreInstrInfo : InstrInfo {
 class Proc<string Name, list<SubtargetFeature> Features>
     : Processor<Name, NoItineraries, Features>;
 
+//===----------------------------------------------------------------------===//
+// TriCore SubtargetFeature definitions.
+//===----------------------------------------------------------------------===//
+
+def FeatureFP  : SubtargetFeature<"fp",  "HasFP",    "true",
+                                  "Enable IEEE 754 single-precision FPU">;
+def FeatureDiv : SubtargetFeature<"div", "HasHWDiv", "true",
+                                  "Enable hardware integer divide (DIV/MADD)">;
+def FeatureDSP : SubtargetFeature<"dsp", "HasDSP",   "true",
+                                  "Enable DSP extensions (MADD, MSUB, ...)">;
+
+//===----------------------------------------------------------------------===//
+// Processor definitions.
+//===----------------------------------------------------------------------===//
+
 def : Proc<"generic", []>;
+def : Proc<"tc16",    []>;
+def : Proc<"tc162",   [FeatureFP]>;
+def : Proc<"tc18",    [FeatureFP, FeatureDiv]>;
+def : Proc<"tc2x",    [FeatureFP, FeatureDiv, FeatureDSP]>;
 
 //===----------------------------------------------------------------------===//
 // Declare the target which we are implementing
