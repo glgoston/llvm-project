@@ -354,6 +354,11 @@ public:
     VK_VE_TPOFF_HI32,  // symbol@tpoff_hi
     VK_VE_TPOFF_LO32,  // symbol@tpoff_lo
 
+    VK_TRICORE_LO, // For TriCore Architecture
+    VK_TRICORE_HI,
+    VK_TRICORE_HI_OFFSET,
+    VK_TRICORE_LO_OFFSET,
+
     VK_TPREL,
     VK_DTPREL
   };

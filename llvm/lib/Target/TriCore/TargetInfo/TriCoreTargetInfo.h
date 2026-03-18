@@ -1,0 +1,14 @@
+#ifndef LLVM_LIB_TARGET_TRICORE_TARGETINFO_TRICORETARGETINFO_H_
+#define LLVM_LIB_TARGET_TRICORE_TARGETINFO_TRICORETARGETINFO_H_
+
+
+namespace llvm {
+
+class Target;
+
+Target &getTheTriCoreTarget();
+
+} // namespace llvm
+
+
+#endif /* LLVM_LIB_TARGET_TRICORE_TARGETINFO_TRICORETARGETINFO_H_ */
