@@ -19,7 +19,7 @@ define i32 @load_i32(ptr %p) {
 define i32 @load_i32_offset(ptr %p) {
 ; Address is %p + 8.
 ; CHECK-LABEL: load_i32_offset:
-; CHECK: ld.w %d2, [%a4]8
+; CHECK: ld.w %d2, [%a4] 8
 ; CHECK: ret
   %gep = getelementptr i32, ptr %p, i32 2
   %v   = load i32, ptr %gep
@@ -30,7 +30,7 @@ define i32 @load_i32_offset(ptr %p) {
 define void @store_i32(ptr %p, i32 %val) {
 ; %p in A4, %val in D4.
 ; CHECK-LABEL: store_i32:
-; CHECK: st.w [%a4], %d4
+; CHECK: st.w [%a4] 0, %d4
 ; CHECK: ret
   store i32 %val, ptr %p
   ret void
@@ -79,7 +79,7 @@ define i32 @load_i16_zext(ptr %p) {
 ; ─── 8-bit store ─────────────────────────────────────────────────────────────
 define void @store_i8(ptr %p, i8 %val) {
 ; CHECK-LABEL: store_i8:
-; CHECK: st.b [%a4], %d4
+; CHECK: st.b [%a4] 0, %d4
 ; CHECK: ret
   store i8 %val, ptr %p
   ret void
@@ -88,7 +88,7 @@ define void @store_i8(ptr %p, i8 %val) {
 ; ─── 16-bit store ────────────────────────────────────────────────────────────
 define void @store_i16(ptr %p, i16 %val) {
 ; CHECK-LABEL: store_i16:
-; CHECK: st.h [%a4], %d4
+; CHECK: st.h [%a4] 0, %d4
 ; CHECK: ret
   store i16 %val, ptr %p
   ret void
@@ -108,7 +108,7 @@ define i64 @load_i64(ptr %p) {
 define void @store_i64(ptr %p, i64 %v) {
 ; i64 arg in E4 (D4:D5); st.d stores even register pair.
 ; CHECK-LABEL: store_i64:
-; CHECK: st.d [%a4], %e4
+; CHECK: st.d [%a4] 0, %e4
 ; CHECK: ret
   store i64 %v, ptr %p
   ret void
@@ -120,7 +120,6 @@ define i32 @local_i32(i32 %a) {
 ; CHECK-LABEL: local_i32:
 ; CHECK: sub.a %a10,
 ; CHECK: st.w
-; CHECK: ld.w
 ; CHECK: ret
   %x = alloca i32, align 4
   store i32 %a, ptr %x

@@ -272,15 +272,33 @@ OperandMatchResultTy TriCoreAsmParser::tryParseRegister(MCRegister &RegNo,
   StartLoc = Tok.getLoc();
   EndLoc = Tok.getEndLoc();
 
-  // Only identifiers can be register names.
-  if (Tok.isNot(AsmToken::Identifier))
+  // Accept both bare identifiers (D2, A4) and %-prefixed identifiers (%d2, %a4)
+  // which are emitted by the InstPrinter.
+  StringRef Name;
+  if (Tok.is(AsmToken::Identifier)) {
+    Name = Tok.getString();
+  } else if (Tok.is(AsmToken::Percent)) {
+    // Consume '%', then expect an identifier.
+    SMLoc PctLoc = Tok.getLoc();
+    getParser().Lex(); // eat '%'
+    const AsmToken &NameTok = getParser().getTok();
+    if (NameTok.isNot(AsmToken::Identifier)) {
+      // Un-lex is not possible; report no-match (caller handles the error).
+      return MatchOperand_NoMatch;
+    }
+    EndLoc = NameTok.getEndLoc();
+    // MatchRegisterName is case-insensitive (generated matcher lowercases).
+    Name = NameTok.getString();
+  } else {
     return MatchOperand_NoMatch;
+  }
 
-  StringRef Name = Tok.getString();
   RegNo = MatchRegisterName(Name);
-
-  if (RegNo == TriCore::NoRegister)
+  if (RegNo == TriCore::NoRegister) {
+    // If we consumed a '%', we cannot un-lex, so treat it as no-match and
+    // let the caller produce an error on the next unexpected token.
     return MatchOperand_NoMatch;
+  }
 
   getParser().Lex(); // Eat identifier token.
   return MatchOperand_Success;
@@ -311,6 +329,42 @@ bool TriCoreAsmParser::ParseInstruction(ParseInstructionInfo &Info,
       Parser.Lex(); // eat comma
     }
     First = false;
+
+    // Try to parse a memory operand: [%An] offset  or  [An] offset
+    // This is the TriCore load/store addressing mode.
+    if (getLexer().is(AsmToken::LBrac)) {
+      SMLoc MemStart = getLexer().getLoc();
+      Parser.Lex(); // eat '['
+      MCRegister BaseReg;
+      SMLoc RS, RE;
+      if (tryParseRegister(BaseReg, RS, RE) != MatchOperand_Success) {
+        Parser.eatToEndOfStatement();
+        return Error(getLexer().getLoc(), "expected base register after '['" );
+      }
+      if (getLexer().isNot(AsmToken::RBrac)) {
+        Parser.eatToEndOfStatement();
+        return Error(getLexer().getLoc(), "expected ']'");
+      }
+      Parser.Lex(); // eat ']'
+      // Optional offset (integer expression).
+      const MCExpr *OffExpr =
+          MCConstantExpr::create(0, getContext());
+      // Offset may follow directly (no space) or after whitespace.
+      if (getLexer().is(AsmToken::Integer) ||
+          getLexer().is(AsmToken::Minus)  ||
+          getLexer().is(AsmToken::Plus)) {
+        SMLoc OStart = getLexer().getLoc();
+        if (getParser().parseExpression(OffExpr)) {
+          Parser.eatToEndOfStatement();
+          return Error(OStart, "invalid offset expression");
+        }
+      }
+      SMLoc MemEnd = getLexer().getLoc();
+      // Encode as two operands: base register + immediate offset.
+      Operands.push_back(TriCoreOperand::createReg(BaseReg, MemStart, MemEnd));
+      Operands.push_back(TriCoreOperand::createImm(OffExpr, MemStart, MemEnd));
+      continue;
+    }
 
     // Try to parse a register operand.
     MCRegister RegNo;

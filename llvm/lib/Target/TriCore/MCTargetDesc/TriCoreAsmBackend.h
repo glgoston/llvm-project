@@ -37,13 +37,13 @@ public:
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override {
     const static MCFixupKindInfo Infos[TriCore::NumTargetFixupKinds] = {
         // This table *must* be in the order that the fixup_* kinds are defined
-        // in
-        // TriCoreFixupKinds.h.
+        // in TriCoreFixupKinds.h.
         //
         // Name                      Offset (bits) Size (bits)     Flags
         {"fixup_leg_mov_hi16_pcrel", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
         {"fixup_leg_mov_lo16_pcrel", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
-        {"fixup_call", 0, 24, 0},
+        {"fixup_call",              0, 24, 0},
+        {"fixup_tricore_branch16",  0, 16, MCFixupKindInfo::FKF_IsPCRel},
     };
 
     if (Kind < FirstTargetFixupKind) {

@@ -148,12 +148,18 @@ TriCoreMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
 
   assert(Kind == MCExpr::SymbolRef);
 
-  // cast<MCSymbolRefExpr>(Expr)->printVariantKind(outs());   FIXME:
-  // printVariantKind
   unsigned FixupKind;
   switch (cast<MCSymbolRefExpr>(Expr)->getKind()) {
   default:
     llvm_unreachable("Unknown fixup kind!");
+  case MCSymbolRefExpr::VK_None: {
+    // Plain label reference (branch/call targets with no relocation variant).
+    // Use a 16-bit fixup for 16-bit (SB/SBR) branch instructions so the
+    // encoding annotation comment doesn't overflow the 2-byte code buffer.
+    bool Is16Bit = (MCII.get(MI.getOpcode()).getSize() == 2);
+    FixupKind = Is16Bit ? TriCore::fixup_tricore_branch16 : TriCore::fixup_call;
+    break;
+  }
   case MCSymbolRefExpr::VK_TRICORE_LO_OFFSET:
   case MCSymbolRefExpr::VK_TRICORE_HI_OFFSET:
     return 0;

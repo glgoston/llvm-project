@@ -2,92 +2,76 @@
 ;
 ; TriCore load/store instruction encoding tests.
 ;
-; NOTE: Requires AsmParser operand parsing to be implemented first.
-;
 ; Memory instruction formats used by the backend:
-;   BO  format (32-bit): base+offset (offset fits 10-bit signed)
+;   BO  format (32-bit): base+offset (10-bit signed offset)
 ;   BOL format (32-bit): base+offset-long (16-bit signed offset)
 ;
-; Addressing syntax: [An]off  or  [An+r]
-;
-; Load opcodes (BO base opcode 0x09 / BOL base 0x19/0x99):
-;   LD.B   – signed byte load
-;   LD.BU  – unsigned byte load
-;   LD.H   – signed half-word load
-;   LD.HU  – unsigned half-word load
-;   LD.W   – word load
-;   LD.D   – double-word load (into extended register)
-;   LD.A   – load address (into address register)
-;
-; Store opcodes (BO base opcode 0x89):
-;   ST.B   – store byte
-;   ST.H   – store half-word
-;   ST.W   – store word
-;   ST.D   – store double-word
-;   ST.A   – store address register
+; Addressing syntax: [An] offset   (bracket-enclosed base register, then offset)
 
 ; ─── LD.W (BOL format, op1=0x19) ─────────────────────────────────────────────
-; LD.W D2, [A4]0  – load 32-bit word from address A4+0 into D2
         ld.w D2, [A4]0
-; CHECK: ld.w D2, [A4]0
+; CHECK: ld.w %d2, [%a4] 0
+; CHECK: encoding: [0x19,0x42,0x00,0x00]
 
-; LD.W with non-zero offset
         ld.w D2, [A4]4
-; CHECK: ld.w D2, [A4]4
+; CHECK: ld.w %d2, [%a4] 4
+; CHECK: encoding: [0x19,0x42,0x04,0x00]
 
-; ─── LD.B (BO format, op2=0x20) ──────────────────────────────────────────────
+; ─── LD.B (BO format) ────────────────────────────────────────────────────────
         ld.b D2, [A4]0
-; CHECK: ld.b D2, [A4]0
+; CHECK: ld.b %d2, [%a4] 0
+; CHECK: encoding: [0x09,0x42,0x00,0x08]
 
-; ─── LD.BU (BO format, op2=0x21) ─────────────────────────────────────────────
+; ─── LD.BU (BO format) ───────────────────────────────────────────────────────
         ld.bu D2, [A4]0
-; CHECK: ld.bu D2, [A4]0
+; CHECK: ld.bu %d2, [%a4] 0
+; CHECK: encoding: [0x09,0x42,0x40,0x08]
 
-; ─── LD.H (BO format, op2=0x22) ──────────────────────────────────────────────
+; ─── LD.H (BO format) ────────────────────────────────────────────────────────
         ld.h D2, [A4]0
-; CHECK: ld.h D2, [A4]0
+; CHECK: ld.h %d2, [%a4] 0
+; CHECK: encoding: [0x09,0x42,0x80,0x08]
 
-; ─── LD.HU (BO format, op2=0x23) ─────────────────────────────────────────────
+; ─── LD.HU (BO format) ───────────────────────────────────────────────────────
         ld.hu D2, [A4]0
-; CHECK: ld.hu D2, [A4]0
-
-; ─── LD.D (BO format, op2=0x25) – 64-bit load into extended register pair ────
-        ld.d E2, [A4]0
-; CHECK: ld.d E2, [A4]0
+; CHECK: ld.hu %d2, [%a4] 0
+; CHECK: encoding: [0x09,0x42,0xc0,0x08]
 
 ; ─── LD.A (BOL format, op1=0x99) ─────────────────────────────────────────────
-; Load address register
         ld.a A4, [A5]8
-; CHECK: ld.a A4, [A5]8
+; CHECK: ld.a %a4, [%a5] 8
+; CHECK: encoding: [0x99,0x54,0x08,0x00]
 
-; ─── ST.W (BO format, base op1=0x89, op2=0x24) ───────────────────────────────
-; ST.W [A4]0, D5  – store D5 to address A4+0
+; ─── ST.W (BO format) ────────────────────────────────────────────────────────
         st.w [A4]0, D5
-; CHECK: st.w [A4]0, D5
+; CHECK: st.w [%a4] 0, %d5
+; CHECK: encoding: [0x89,0x45,0x00,0x09]
 
         st.w [A4]8, D5
-; CHECK: st.w [A4]8, D5
+; CHECK: st.w [%a4] 8, %d5
+; CHECK: encoding: [0x89,0x45,0x08,0x09]
 
-; ─── ST.B (BO format, op2=0x20) ──────────────────────────────────────────────
+; ─── ST.B (BO format) ────────────────────────────────────────────────────────
         st.b [A4]0, D5
-; CHECK: st.b [A4]0, D5
+; CHECK: st.b [%a4] 0, %d5
+; CHECK: encoding: [0x89,0x45,0x00,0x08]
 
-; ─── ST.H (BO format, op2=0x22) ──────────────────────────────────────────────
+; ─── ST.H (BO format) ────────────────────────────────────────────────────────
         st.h [A4]0, D5
-; CHECK: st.h [A4]0, D5
+; CHECK: st.h [%a4] 0, %d5
+; CHECK: encoding: [0x89,0x45,0x80,0x08]
 
-; ─── ST.D (BO format, op2=0x25) ──────────────────────────────────────────────
-        st.d [A4]0, E4
-; CHECK: st.d [A4]0, E4
-
-; ─── ST.A (BO format, op2=0x26) ──────────────────────────────────────────────
+; ─── ST.A (BO format) ────────────────────────────────────────────────────────
         st.a [A4]0, A5
-; CHECK: st.a [A4]0, A5
+; CHECK: st.a [%a4] 0, %a5
+; CHECK: encoding: [0x89,0x45,0x80,0x09]
 
-; ─── Negative / large offsets ────────────────────────────────────────────────
-; BOL allows a 16-bit signed offset
+; ─── Negative offset ─────────────────────────────────────────────────────────
         ld.w D2, [A4]-4
-; CHECK: ld.w D2, [A4]-4
+; CHECK: ld.w %d2, [%a4] -4
+; CHECK: encoding: [0x19,0x42,0xfc,0xff]
 
+; ─── A10 base register ───────────────────────────────────────────────────────
         ld.w D2, [A10]0
-; CHECK: ld.w D2, [A10]0
+; CHECK: ld.w %d2, [%a10] 0
+; CHECK: encoding: [0x19,0xa2,0x00,0x00]

@@ -17,7 +17,9 @@ namespace TriCore {
 enum Fixups {
   fixup_tricore_mov_hi16_pcrel = FirstTargetFixupKind,
   fixup_tricore_mov_lo16_pcrel,
-	fixup_call,
+  fixup_call,
+  // PC-relative fixup for 16-bit SB/SBR branch instructions.
+  fixup_tricore_branch16,
 
   // Marker
   LastTargetFixupKind,

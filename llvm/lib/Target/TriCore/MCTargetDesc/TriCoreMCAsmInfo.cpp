@@ -20,7 +20,7 @@ TriCoreMCAsmInfo::TriCoreMCAsmInfo(const Triple &TT) {
   Data32bitsDirective = "\t.word\t";
   Data64bitsDirective = nullptr;
   ZeroDirective = "\t.zero\t";
-  CommentString = "#";
+  CommentString = ";";
   UsesELFSectionDirectiveForBSS = true;
   AlignmentIsInBytes = false;
 

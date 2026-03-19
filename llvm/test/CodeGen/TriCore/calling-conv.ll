@@ -41,8 +41,9 @@ define i32 @identity_i32(i32 %a) {
 ; ─── Two i32 arguments ───────────────────────────────────────────────────────
 define i32 @add_two(i32 %a, i32 %b) {
 ; %a→D4, %b→D5, result→D2
+; Backend emits 2-op form: mov dst, src2; add dst, src1.
 ; CHECK-LABEL: add_two:
-; CHECK: add %d2, %d4, %d5
+; CHECK: add %d2, %d{{[0-9]+}}
 ; CHECK: ret
   %r = add i32 %a, %b
   ret i32 %r

@@ -47,6 +47,8 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   switch (Kind) {
   default:
     llvm_unreachable("Unknown fixup kind!");
+  case TriCore::fixup_tricore_branch16:
+    return Value & 0xffff;
   case TriCore::fixup_call:
     return Value & 0xffffff;
   case TriCore::fixup_tricore_mov_hi16_pcrel:
