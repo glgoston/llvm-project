@@ -45,6 +45,7 @@ class T32<dag outs, dag ins, string asmstr, list<dag> pattern>
     : InstTriCore<outs, ins, asmstr, pattern> {
   field bits<32> Inst;
   let Size = 4;
+  let DecoderNamespace = "TriCore";
 }
 
 //===----------------------------------------------------------------------===//
@@ -55,6 +56,7 @@ class T16<bits<8> op1, dag outs, dag ins, string asmstr, list<dag> pattern>
   field bits<16> Inst;
   let Inst{7-0} = op1;
   let Size = 2;
+  let DecoderNamespace = "TriCore16";
 }
 
 //===----------------------------------------------------------------------===//

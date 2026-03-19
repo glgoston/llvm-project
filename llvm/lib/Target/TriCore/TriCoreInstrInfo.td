@@ -459,14 +459,14 @@ def LDHUbo : AlignedLoad<0x23, "ld.hu" , zextloadi16>;
 def LDDbo  : AlignedLoad<0x25, "ld.d"  , load, ExtRegs, i64>;
 
 def LDWbo : BOL<0x19, (outs DataRegs:$d),
-		 (ins memsrc:$memri),
-		 "ld.w $d, $memri",
-		 [(set DataRegs:$d, (load addr:$memri))]>{ let mayLoad = 1; }
+                 (ins memsrc16:$memri),
+                 "ld.w $d, $memri",
+                 [(set DataRegs:$d, (load addr:$memri))]>{ let mayLoad = 1; }
 
 def LDAbo : BOL<0x99, (outs AddrRegs:$d),
-		 (ins memsrc:$memri),
-		 "ld.a $d, $memri",
-		 [(set AddrRegs:$d, (load addr:$memri))]>{ let mayLoad = 1; }
+                 (ins memsrc16:$memri),
+                 "ld.a $d, $memri",
+                 [(set AddrRegs:$d, (load addr:$memri))]>{ let mayLoad = 1; }
 
 def : Pat<(extloadi8 addr:$src), (LDBbo addr:$src)>;
 def : Pat<(extloadi16 addr:$src), (LDHbo addr:$src)>;

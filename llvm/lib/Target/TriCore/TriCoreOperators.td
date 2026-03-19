@@ -82,6 +82,14 @@ def u4imm      : Operand<i32> { let PrintMethod = "printZExtImm<4>";  }
 def u9imm      : Operand<i32> { let PrintMethod = "printZExtImm<9>";  }
 def u16imm     : Operand<i32> { let PrintMethod = "printZExtImm<16>";  }
 
+// 16-bit offset variant used by BOL (ld.w, ld.a) format instructions.
+def memsrc16 : Operand<i32> {
+  let MIOperandInfo = (ops AddrRegs, s16imm);
+  let PrintMethod = "printAddrModeMemSrc";
+  let EncoderMethod = "encodeMemSrcValue";
+  let DecoderMethod = "decodeBOLMemSrcValue";
+}
+
 
 //Nodes
 def immSExt4  : PatLeaf<(imm), [{ return isInt<4>(N->getSExtValue()); }]>;
