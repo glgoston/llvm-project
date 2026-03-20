@@ -352,10 +352,15 @@ SDValue TriCoreTargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
   SDValue tricoreCC;
   SDValue Flag = EmitCMP(LHS, RHS, CC, dl, DAG, tricoreCC);
 
+  // TriCore comparison nodes materialize a boolean-like value in a data
+  // register. Branch-on-true is therefore always "nonzero" regardless of the
+  // original IR condition code.
+  SDValue BranchOnTrueCC = DAG.getConstant(TriCoreCC::COND_NE, dl, MVT::i32);
+
   // Flag.getValue(1).dump();
 
   return DAG.getNode(TriCoreISD::BR_CC, dl, Op.getValueType(), Chain, Dest,
-                     Flag.getValue(0), tricoreCC, Flag.getValue(1));
+                     Flag.getValue(0), BranchOnTrueCC, Flag.getValue(1));
 }
 
 SDValue TriCoreTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {

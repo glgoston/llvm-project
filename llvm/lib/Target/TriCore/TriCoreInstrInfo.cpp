@@ -879,35 +879,6 @@ bool TriCoreInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
     Cond.push_back(MachineOperand::CreateImm(SecondLastCC));
     for (unsigned j = 1; j < SecondLastInst->getNumOperands(); ++j)
       Cond.push_back(SecondLastInst->getOperand(j));
-
-    // If AllowModify and FBB is the layout successor, invert the condition
-    // and remove the trailing unconditional branch.
-    if (AllowModify) {
-      MachineFunction::iterator NextBB =
-          std::next(MachineFunction::iterator(MBB));
-      if (NextBB != MBB.getParent()->end() && &*NextBB == FBB) {
-        TriCoreCC::CondCodes InvCC = getOppositeCondition(SecondLastCC);
-        MachineBasicBlock *NewTBB = FBB;
-        FBB = nullptr;
-        Cond.clear();
-        Cond.push_back(MachineOperand::CreateImm(InvCC));
-        for (unsigned j = 1; j < SecondLastInst->getNumOperands(); ++j)
-          Cond.push_back(SecondLastInst->getOperand(j));
-        SecondLastInst->eraseFromParent();
-        LastInst->eraseFromParent();
-        {
-          MachineInstrBuilder MIB = BuildMI(MBB, MBB.end(), DebugLoc(),
-                                            get(getBrCond(InvCC)))
-                                        .addMBB(NewTBB);
-          // Cond[1..] holds the comparison register operand(s); re-add them so
-          // the inverted branch has the correct number of operands (e.g.
-          // JZsbr / JNZsbr require both MBB and a DataReg operand).
-          for (unsigned j = 1; j < Cond.size(); ++j)
-            MIB.add(Cond[j]);
-        }
-        TBB = NewTBB;
-      }
-    }
     return false;
   }
 

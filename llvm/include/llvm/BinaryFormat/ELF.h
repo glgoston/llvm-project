@@ -879,6 +879,11 @@ enum {
 #include "ELFRelocs/MSP430.def"
 };
 
+// ELF Relocation types for TriCore
+enum {
+#include "ELFRelocs/TriCore.def"
+};
+
 // ELF Relocation type for VE.
 enum {
 #include "ELFRelocs/VE.def"

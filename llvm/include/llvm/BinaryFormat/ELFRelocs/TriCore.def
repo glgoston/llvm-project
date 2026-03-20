@@ -1,0 +1,18 @@
+#ifndef ELF_RELOC
+#error "ELF_RELOC must be defined"
+#endif
+
+// TriCore ELF relocations (EM_TRICORE = 44)
+// Based on TriCore ELF ABI 2.1 specification
+
+ELF_RELOC(R_TRICORE_NONE,         0x00)  // No relocation
+ELF_RELOC(R_TRICORE_32REL,        0x01)  // PC-relative 32-bit
+ELF_RELOC(R_TRICORE_32ABS,        0x02)  // Absolute 32-bit
+ELF_RELOC(R_TRICORE_24REL,        0x03)  // PC-relative 24-bit (function calls)
+ELF_RELOC(R_TRICORE_16SM,         0x04)  // Signed 16-bit with modulo
+ELF_RELOC(R_TRICORE_16REL,        0x05)  // PC-relative 16-bit (branches)
+ELF_RELOC(R_TRICORE_16ABS,        0x06)  // Absolute 16-bit
+ELF_RELOC(R_TRICORE_LO,           0x07)  // Lower 16-bit
+ELF_RELOC(R_TRICORE_HI,           0x08)  // Upper 16-bit
+ELF_RELOC(R_TRICORE_PCHI,         0x09)  // PC-relative upper 16-bit
+ELF_RELOC(R_TRICORE_PCLO,         0x0A)  // PC-relative lower 16-bit

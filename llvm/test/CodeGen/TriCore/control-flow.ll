@@ -56,9 +56,9 @@ define i32 @unsigned_lt(i32 %a, i32 %b) {
 ; ─── Simple while loop ──────────────────────────────────────────────────────
 define i32 @sum_1_to_n(i32 %n) {
 ; sum = 0; i = 1; while (i <= n) { sum += i; i++; }  return sum;
-; NOTE: Back-edge conditional branch emit is a known TODO in the TriCore backend.
 ; CHECK-LABEL: sum_1_to_n:
 ; CHECK: {{ge|lt}}
+; CHECK: {{jnz|jz}}
 ; CHECK: ret
 entry:
   br label %loop

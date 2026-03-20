@@ -53,11 +53,8 @@ define i32 @add_large_const(i32 %a) {
 
 ; ─── 32-bit SUB ──────────────────────────────────────────────────────────────
 define i32 @sub_i32(i32 %a, i32 %b) {
-; NOTE: Backend currently lacks a data-register SUB pattern and falls back
-; to address-register arithmetic.  The final result is correct but uses
-; sub.a / mov.d indirection.  A proper SUB Drr pattern is a known TODO.
 ; CHECK-LABEL: sub_i32:
-; CHECK: mov.d %d{{[0-9]+}}
+; CHECK: sub %d2, %d{{[0-9]+}}, %d{{[0-9]+}}
 ; CHECK: ret
   %r = sub i32 %a, %b
   ret i32 %r

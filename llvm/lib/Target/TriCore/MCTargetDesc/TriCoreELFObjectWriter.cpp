@@ -11,6 +11,7 @@
 #include "MCTargetDesc/TriCoreMCTargetDesc.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCSectionELF.h"
@@ -37,19 +38,25 @@ unsigned TriCoreELFObjectWriter::getRelocType(MCContext &Ctx,
                                               const MCValue &Target,
                                               const MCFixup &Fixup,
                                               bool IsPCRel) const {
-  if (!IsPCRel) {
-    llvm_unreachable("Only dealying with PC-relative fixups for now");
-  }
-
   unsigned Type = 0;
   switch ((unsigned)Fixup.getKind()) {
   default:
-    llvm_unreachable("Unimplemented");
+    llvm_unreachable("Unknown TriCore fixup kind");
+  case TriCore::fixup_tricore_branch16:
+    // 16-bit PC-relative branch (JZ, JNZ, SB, SBR instructions)
+    Type = ELF::R_TRICORE_16REL;
+    break;
+  case TriCore::fixup_call:
+    // 24-bit PC-relative function call (CALL instruction)
+    Type = ELF::R_TRICORE_24REL;
+    break;
   case TriCore::fixup_tricore_mov_hi16_pcrel:
-    Type = ELF::R_ARM_MOVT_PREL;
+    // Upper 16-bit of PC-relative address (MOVH.A instruction)
+    Type = ELF::R_TRICORE_PCHI;
     break;
   case TriCore::fixup_tricore_mov_lo16_pcrel:
-    Type = ELF::R_ARM_MOVW_PREL_NC;
+    // Lower 16-bit of PC-relative address (LEA instruction)
+    Type = ELF::R_TRICORE_PCLO;
     break;
   }
   return Type;

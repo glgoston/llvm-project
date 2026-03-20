@@ -204,10 +204,12 @@ def SUBi64 : Pseudo<(outs ExtRegs:$d),
 let Defs = [A10], Uses = [A10] in
 def SUBAsc : SC<0x20, (outs), (ins u8imm:$const8), "sub.a %a10, $const8", []>;
 
+let Predicates = [isPointer] in
 def SUBArr : RR<0x01, 0x02, (outs AddrRegs:$d),
 		(ins AddrRegs:$s1, AddrRegs:$s2), "sub.a $d, $s1, $s2",
 		[(set AddrRegs:$d, (sub AddrRegs:$s1, AddrRegs:$s2) )]>;
 
+let AddedComplexity = 6 in
 def SUBrr : RR<0x0B, 0x08, (outs DataRegs:$d),
 		(ins DataRegs:$s1, DataRegs:$s2), "sub $d, $s1, $s2",
 		[(set DataRegs:$d, (sub DataRegs:$s1, DataRegs:$s2))]>;
