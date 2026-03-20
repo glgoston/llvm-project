@@ -1,0 +1,13 @@
+# RUN: llvm-mc -disassemble -triple tricore-unknown-elf %s | FileCheck %s
+
+0x00 0x90
+# CHECK: ret
+
+0xc2 0x52
+# CHECK: add %d2, 5
+
+0x0b 0x43 0x00 0x20
+# CHECK: add %d2, %d3, %d4
+
+0x0b 0x43 0x80 0x20
+# CHECK: sub %d2, %d3, %d4

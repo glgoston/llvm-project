@@ -20,6 +20,7 @@
 #include "TriCoreInstrInfo.h"
 #include "TriCoreSelectionDAGInfo.h"
 #include "TriCoreSubtarget.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
 
@@ -49,7 +50,11 @@ public:
 
   /// Pass Pipeline Configuration
   virtual TargetPassConfig *createPassConfig(legacy::PassManagerBase &PM) override;
-  
+
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
+
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }

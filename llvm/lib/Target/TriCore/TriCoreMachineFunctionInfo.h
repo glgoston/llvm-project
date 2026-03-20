@@ -14,7 +14,6 @@
 #ifndef TriCoreMACHINEFUNCTIONINFO_H
 #define TriCoreMACHINEFUNCTIONINFO_H
 
-#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 
 namespace llvm {
@@ -25,18 +24,26 @@ class Function;
 /// TriCoreFunctionInfo - This class is derived from MachineFunction private
 /// TriCore target-specific information for each MachineFunction.
 class TriCoreFunctionInfo : public MachineFunctionInfo {
-  /// VarArgsFrameOffset — offset of the first variadic argument from the
-  /// frame pointer (or stack pointer if no FP).  Set in LowerFormalArguments
-  /// for vararg functions; used by LowerVASTART.
-  int VarArgsFrameOffset = 0;
+  /// Frame index of the first variadic argument save slot or first stack
+  /// variadic argument.
+  int VarArgsFrameIndex = 0;
 
 public:
-  TriCoreFunctionInfo() {}
+  TriCoreFunctionInfo() = default;
+  explicit TriCoreFunctionInfo(const Function &F,
+                               const TargetSubtargetInfo *STI) {}
 
-  ~TriCoreFunctionInfo() {}
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override {
+    return DestMF.cloneInfo<TriCoreFunctionInfo>(*this);
+  }
 
-  int getVarArgsFrameOffset() const { return VarArgsFrameOffset; }
-  void setVarArgsFrameOffset(int Offset) { VarArgsFrameOffset = Offset; }
+  ~TriCoreFunctionInfo() override = default;
+
+  int getVarArgsFrameIndex() const { return VarArgsFrameIndex; }
+  void setVarArgsFrameIndex(int Index) { VarArgsFrameIndex = Index; }
 };
 } // End llvm namespace
 

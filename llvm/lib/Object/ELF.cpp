@@ -180,6 +180,13 @@ StringRef llvm::object::getELFRelocationTypeName(uint32_t Machine,
       break;
     }
     break;
+  case ELF::EM_TRICORE:
+    switch (Type) {
+#include "llvm/BinaryFormat/ELFRelocs/TriCore.def"
+    default:
+      break;
+    }
+    break;
   default:
     break;
   }

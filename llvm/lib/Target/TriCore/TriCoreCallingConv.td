@@ -17,6 +17,9 @@ def RetCC_TriCore : CallingConv<[
   // Promote i8/i16 return values to i32.
   CCIfType<[i8, i16], CCPromoteToType<i32>>,
 
+  // Single-precision floats use the data-register return slot.
+  CCIfType<[f32], CCBitConvertToType<i32>>,
+
   // Pointer return values go in A2.
   CCIfPtr<CCAssignToReg<[A2]>>,
 
@@ -33,6 +36,9 @@ def RetCC_TriCore : CallingConv<[
 def CC_TriCore : CallingConv<[
   // Promote i8/i16 arguments to i32.
   CCIfType<[i8, i16], CCPromoteToType<i32>>,
+
+  // Single-precision floats use the data-register argument slots.
+  CCIfType<[f32], CCBitConvertToType<i32>>,
 
   // Pointer arguments are passed in address registers A4-A7.
   // CCIfPtr checks ArgFlags.isPointer() which LLVM sets for IR pointer types.

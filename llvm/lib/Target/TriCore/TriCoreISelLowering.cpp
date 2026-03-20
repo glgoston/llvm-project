@@ -75,6 +75,8 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
     : TargetLowering(TriCoreTM), Subtarget(*TriCoreTM.getSubtargetImpl()) {
   // Set up the register classes.
   addRegisterClass(MVT::i32, &TriCore::DataRegsRegClass);
+  if (Subtarget.hasFP())
+    addRegisterClass(MVT::f32, &TriCore::DataRegsRegClass);
   // addRegisterClass(MVT::i32, &TriCore::AddrRegsRegClass);
   addRegisterClass(MVT::i64, &TriCore::ExtRegsRegClass);
   // addRegisterClass(MVT::i32, &TriCore::PSRegsRegClass);
@@ -109,6 +111,21 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
   setOperationAction(ISD::UDIV, MVT::i32, Expand);
   setOperationAction(ISD::SREM, MVT::i32, Expand);
   setOperationAction(ISD::UREM, MVT::i32, Expand);
+  setOperationAction(ISD::MUL, MVT::i64, LibCall);
+  setOperationAction(ISD::SMUL_LOHI, MVT::i64, Expand);
+  setOperationAction(ISD::UMUL_LOHI, MVT::i64, Expand);
+
+  if (Subtarget.hasFP()) {
+    setOperationAction(ISD::FADD, MVT::f32, Expand);
+    setOperationAction(ISD::FSUB, MVT::f32, Expand);
+    setOperationAction(ISD::FMUL, MVT::f32, Expand);
+    setOperationAction(ISD::FDIV, MVT::f32, Expand);
+    setOperationAction(ISD::SETCC, MVT::f32, Expand);
+    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Expand);
+    setOperationAction(ISD::FP_TO_UINT, MVT::i32, Expand);
+    setOperationAction(ISD::SINT_TO_FP, MVT::f32, Expand);
+    setOperationAction(ISD::UINT_TO_FP, MVT::f32, Expand);
+  }
 
   // Enable jump tables for switch statements with >= 4 cases.
   setMinimumJumpTableEntries(4);
@@ -423,8 +440,8 @@ SDValue TriCoreTargetLowering::LowerVASTART(SDValue Op,
 
   // va_start stores a pointer to the first variadic argument into the
   // va_list object.  Frame pointer + VarArgsFrameOffset gives that address.
-  SDValue FI = DAG.getFrameIndex(FuncInfo->getVarArgsFrameOffset(),
-                                  getPointerTy(DAG.getDataLayout()));
+  SDValue FI = DAG.getFrameIndex(FuncInfo->getVarArgsFrameIndex(),
+                                 getPointerTy(DAG.getDataLayout()));
   const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
   return DAG.getStore(Op.getOperand(0), dl, FI, Op.getOperand(1),
                       MachinePointerInfo(SV));
@@ -563,8 +580,24 @@ TriCoreTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     CCValAssign &VA = ArgLocs[i];
     SDValue Arg = OutVals[i];
 
-    // We only handle fully promoted arguments.
-    assert(VA.getLocInfo() == CCValAssign::Full && "Unhandled loc info");
+    switch (VA.getLocInfo()) {
+    default:
+      llvm_unreachable("Unhandled loc info");
+    case CCValAssign::Full:
+      break;
+    case CCValAssign::BCvt:
+      Arg = DAG.getBitcast(VA.getLocVT(), Arg);
+      break;
+    case CCValAssign::SExt:
+      Arg = DAG.getNode(ISD::SIGN_EXTEND, Loc, VA.getLocVT(), Arg);
+      break;
+    case CCValAssign::ZExt:
+      Arg = DAG.getNode(ISD::ZERO_EXTEND, Loc, VA.getLocVT(), Arg);
+      break;
+    case CCValAssign::AExt:
+      Arg = DAG.getNode(ISD::ANY_EXTEND, Loc, VA.getLocVT(), Arg);
+      break;
+    }
 
     if (VA.isRegLoc()) {
       RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
@@ -642,11 +675,36 @@ SDValue TriCoreTargetLowering::LowerCallResult(
 
   // Copy all of the result registers out of their specified physreg.
   for (auto &VA : RVLocs) {
-    Chain =
-        DAG.getCopyFromReg(Chain, dl, VA.getLocReg(), VA.getValVT(), InGlue)
-            .getValue(1);
-    InGlue = Chain.getValue(2);
-    InVals.push_back(Chain.getValue(0));
+    SDValue Val = DAG.getCopyFromReg(Chain, dl, VA.getLocReg(), VA.getLocVT(),
+                                     InGlue);
+    Chain = Val.getValue(1);
+    InGlue = Val.getValue(2);
+
+    SDValue Result = Val;
+    switch (VA.getLocInfo()) {
+    default:
+      llvm_unreachable("Unknown loc info!");
+    case CCValAssign::Full:
+      break;
+    case CCValAssign::BCvt:
+      Result = DAG.getBitcast(VA.getValVT(), Result);
+      break;
+    case CCValAssign::SExt:
+      Result = DAG.getNode(ISD::AssertSext, dl, VA.getLocVT(), Result,
+                           DAG.getValueType(VA.getValVT()));
+      Result = DAG.getNode(ISD::TRUNCATE, dl, VA.getValVT(), Result);
+      break;
+    case CCValAssign::ZExt:
+      Result = DAG.getNode(ISD::AssertZext, dl, VA.getLocVT(), Result,
+                           DAG.getValueType(VA.getValVT()));
+      Result = DAG.getNode(ISD::TRUNCATE, dl, VA.getValVT(), Result);
+      break;
+    case CCValAssign::AExt:
+      Result = DAG.getNode(ISD::TRUNCATE, dl, VA.getValVT(), Result);
+      break;
+    }
+
+    InVals.push_back(Result);
   }
 
   return Chain;
@@ -738,13 +796,38 @@ SDValue TriCoreTargetLowering::LowerFormalArguments(
     InVals.push_back(Load);
   }
 
-  // For vararg functions, record the frame index of the first variadic
-  // argument.  va_start uses this to initialise the va_list pointer.
+  // For vararg functions, save any remaining argument registers into a
+  // contiguous fixed-object area and record the first slot for va_start.
   if (isVarArg) {
+    static const MCPhysReg DataArgRegs[] = {TriCore::D4, TriCore::D5,
+                                            TriCore::D6, TriCore::D7};
     TriCoreFunctionInfo *FuncInfo = MF.getInfo<TriCoreFunctionInfo>();
-    int VarArgsFI = MF.getFrameInfo().CreateFixedObject(
-        4, CCInfo.getNextStackOffset(), true);
-    FuncInfo->setVarArgsFrameOffset(VarArgsFI);
+    SmallVector<SDValue, 4> VarArgStores;
+    unsigned FirstVAReg = CCInfo.getFirstUnallocated(DataArgRegs);
+
+    if (FirstVAReg < std::size(DataArgRegs)) {
+      int Offset = 0;
+      for (int I = std::size(DataArgRegs) - 1; I >= (int)FirstVAReg; --I) {
+        int FI = MF.getFrameInfo().CreateFixedObject(4, Offset, true);
+        if (I == (int)FirstVAReg)
+          FuncInfo->setVarArgsFrameIndex(FI);
+
+        Register VReg = RegInfo.createVirtualRegister(&TriCore::DataRegsRegClass);
+        RegInfo.addLiveIn(DataArgRegs[I], VReg);
+        SDValue Val = DAG.getCopyFromReg(Chain, dl, VReg, MVT::i32);
+        SDValue Addr = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
+        VarArgStores.push_back(DAG.getStore(Val.getValue(1), dl, Val, Addr,
+                                            MachinePointerInfo::getFixedStack(MF, FI)));
+        Offset -= 4;
+      }
+    } else {
+      int VarArgsFI = MF.getFrameInfo().CreateFixedObject(
+          4, CCInfo.getNextStackOffset(), true);
+      FuncInfo->setVarArgsFrameIndex(VarArgsFI);
+    }
+
+    if (!VarArgStores.empty())
+      Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, VarArgStores);
   }
 
   return Chain;
@@ -774,9 +857,6 @@ TriCoreTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
                                    const SmallVectorImpl<ISD::OutputArg> &Outs,
                                    const SmallVectorImpl<SDValue> &OutVals,
                                    const SDLoc &dl, SelectionDAG &DAG) const {
-  if (isVarArg)
-    report_fatal_error("VarArg not supported");
-
   // CCValAssign - represent the assignment of
   // the return value to a location
   SmallVector<CCValAssign, 16> RVLocs;
@@ -796,7 +876,27 @@ TriCoreTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
     CCValAssign &VA = RVLocs[i];
     assert(VA.isRegLoc() && "Can only return in registers!");
 
-    Chain = DAG.getCopyToReg(Chain, dl, VA.getLocReg(), OutVals[i], Flag);
+    SDValue RetVal = OutVals[i];
+    switch (VA.getLocInfo()) {
+    default:
+      llvm_unreachable("Unknown loc info!");
+    case CCValAssign::Full:
+      break;
+    case CCValAssign::BCvt:
+      RetVal = DAG.getBitcast(VA.getLocVT(), RetVal);
+      break;
+    case CCValAssign::SExt:
+      RetVal = DAG.getNode(ISD::SIGN_EXTEND, dl, VA.getLocVT(), RetVal);
+      break;
+    case CCValAssign::ZExt:
+      RetVal = DAG.getNode(ISD::ZERO_EXTEND, dl, VA.getLocVT(), RetVal);
+      break;
+    case CCValAssign::AExt:
+      RetVal = DAG.getNode(ISD::ANY_EXTEND, dl, VA.getLocVT(), RetVal);
+      break;
+    }
+
+    Chain = DAG.getCopyToReg(Chain, dl, VA.getLocReg(), RetVal, Flag);
 
     Flag = Chain.getValue(1);
     RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));

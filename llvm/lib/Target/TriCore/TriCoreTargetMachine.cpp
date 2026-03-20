@@ -16,6 +16,7 @@
 #include "TriCoreFrameLowering.h"
 #include "TriCoreISelLowering.h"
 #include "TriCoreInstrInfo.h"
+#include "TriCoreMachineFunctionInfo.h"
 #include "TriCoreSelectionDAGInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
@@ -91,6 +92,12 @@ public:
 TargetPassConfig *
 TriCoreTargetMachine::createPassConfig(legacy::PassManagerBase &PM) {
   return new TriCorePassConfig(*this, PM);
+}
+
+MachineFunctionInfo *TriCoreTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return TriCoreFunctionInfo::create<TriCoreFunctionInfo>(Allocator, F, STI);
 }
 
 bool TriCorePassConfig::addPreISel() { return false; }
