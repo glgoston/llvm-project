@@ -18,6 +18,8 @@ namespace clang {
 namespace targets {
 
 class LLVM_LIBRARY_VISIBILITY TriCoreTargetInfo : public TargetInfo {
+  std::string CPU = "generic";
+
 public:
   TriCoreTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
@@ -51,6 +53,36 @@ public:
 
   bool setCPU(const std::string &Name) override;
 
+  ArrayRef<const char *> getGCCRegNames() const override {
+    // Basic register name set for inline asm validation.
+    static const char *const GCCRegNames[] = {
+        "d0",  "d1",  "d2",  "d3",  "d4",  "d5",  "d6",  "d7",
+        "d8",  "d9",  "d10", "d11", "d12", "d13", "d14", "d15",
+        "a0",  "a1",  "a2",  "a3",  "a4",  "a5",  "a6",  "a7",
+        "a8",  "a9",  "a10", "a11", "a12", "a13", "a14", "a15",
+        "sp",  "pc",  "psw", "pcxi",
+    };
+    return llvm::ArrayRef(GCCRegNames);
+  }
+
+  ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
+    return std::nullopt;
+  }
+
+  bool validateAsmConstraint(const char *&Name,
+                             TargetInfo::ConstraintInfo &Info) const override {
+    (void)Info;
+    switch (*Name) {
+    case 'd':
+    case 'a':
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  const char *getClobbers() const override { return ""; }
+
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;
   }
@@ -58,6 +90,8 @@ public:
   ArrayRef<Builtin::Info> getTargetBuiltins() const override {
     return std::nullopt;
   }
+
+  bool hasBitIntType() const override { return true; }
 };
 
 } // namespace targets

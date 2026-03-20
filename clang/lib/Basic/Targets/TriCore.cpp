@@ -19,7 +19,6 @@ void TriCoreTargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__TRICORE__");
   Builder.defineMacro("__ELF__");
 
-  StringRef CPU = getTargetOpts().CPU;
   if (CPU == "tc16")
     Builder.defineMacro("__TC16__");
   else if (CPU == "tc162")
