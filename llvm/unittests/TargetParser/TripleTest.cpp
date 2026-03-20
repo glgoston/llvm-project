@@ -880,6 +880,22 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::UnknownArch, T.getArch());
 }
 
+TEST(TripleTest, TriCoreParsedIDs) {
+  Triple T;
+
+  T = Triple("tricore-unknown-elf");
+  EXPECT_EQ(Triple::tricore, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
+  T = Triple("tricore-pc-none-elf");
+  EXPECT_EQ(Triple::tricore, T.getArch());
+  EXPECT_EQ(Triple::PC, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+}
+
 static std::string Join(StringRef A, StringRef B, StringRef C) {
   std::string Str = std::string(A);
   Str += '-';
