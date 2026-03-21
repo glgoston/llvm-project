@@ -52,7 +52,15 @@ enum NodeType {
   SELECT_CC,
   LOGICCMP,
   IMASK,
-  EXTR
+  EXTR,
+  // FPU compare: raw 4-bit one-hot flags from CMP.F (TC1.6 §9.4).
+  //   bit 0 = UNO (unordered)  bit 1 = LT  bit 2 = EQ  bit 3 = GT
+  CMPF,
+  // FPU type conversions (all i32↔i32 at the DAG level; float bits in DataReg).
+  ITOF,   // signed int  → float bits  (maps to ITOF  instruction)
+  UTOF,   // unsigned int → float bits  (maps to UTOF  instruction)
+  FTOIZ,  // float bits → int,  round toward zero (maps to FTOIZ, C fptosi)
+  FTOUZ   // float bits → uint, round toward zero (maps to FTOUZ, C fptoui)
 };
 }
 
@@ -115,6 +123,10 @@ private:
 
   // Lower Shift Instruction
   SDValue LowerShifts(SDValue Op, SelectionDAG &DAG) const;
+
+  // Lower float/int conversions through runtime libcalls.
+  SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
 
   // Lower VA_START for vararg support
   SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;

@@ -114,6 +114,19 @@ public:
 bool TriCoreDAGToDAGISel::ptyType = false;
 bool TriCoreDAGToDAGISel::isPointer() { return ptyType; }
 
+static SDValue getI32BitPatternOperand(SDValue V) {
+  if (V.getSimpleValueType() == MVT::i32)
+    return V;
+
+  if (V.getOpcode() == ISD::BITCAST && V.getSimpleValueType() == MVT::f32) {
+    SDValue Inner = V.getOperand(0);
+    if (Inner.getSimpleValueType() == MVT::i32)
+      return Inner;
+  }
+
+  return SDValue();
+}
+
 /// MatchWrapper - Try to match MSP430ISD::Wrapper node into an addressing mode.
 /// These wrap things that will resolve down into a symbol reference.  If no
 /// match is possible, this returns true, otherwise it returns false.
@@ -440,6 +453,39 @@ void TriCoreDAGToDAGISel::Select(SDNode *N) {
   LLVM_DEBUG(N->dump(CurDAG));
   LLVM_DEBUG(errs() << "\n");
   switch (N->getOpcode()) {
+  case ISD::BITCAST: {
+    if (!Subtarget.hasFP() || N->getSimpleValueType(0) != MVT::i32)
+      break;
+
+    SDValue FPExpr = N->getOperand(0);
+    unsigned Opc = 0;
+    switch (FPExpr.getOpcode()) {
+    default:
+      break;
+    case ISD::FADD:
+      Opc = TriCore::ADDFrr;
+      break;
+    case ISD::FSUB:
+      Opc = TriCore::SUBFrr;
+      break;
+    case ISD::FMUL:
+      Opc = TriCore::MULFrr;
+      break;
+    case ISD::FDIV:
+      Opc = TriCore::DIVFrr;
+      break;
+    }
+
+    if (Opc) {
+      SDValue LHS = getI32BitPatternOperand(FPExpr.getOperand(0));
+      SDValue RHS = getI32BitPatternOperand(FPExpr.getOperand(1));
+      if (LHS && RHS) {
+        CurDAG->SelectNodeTo(N, Opc, MVT::i32, LHS, RHS);
+        return;
+      }
+    }
+    break;
+  }
   case ISD::Constant:
     SelectConstant(N);
     break;

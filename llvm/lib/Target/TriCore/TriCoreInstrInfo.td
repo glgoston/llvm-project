@@ -52,6 +52,19 @@ def TriCorecmp     : SDNode<"TriCoreISD::CMP",
 														SDT_TriCoreCmp, [SDNPOutGlue]>;
 def TriCorelogiccmp: SDNode<"TriCoreISD::LOGICCMP", 
 														SDT_TriCoreLCmp, [SDNPInGlue, SDNPOutGlue]>;
+
+// CMP.F raw result: i32 = cmpf(i32, i32). Bits 0–3 are one-hot condition flags.
+def SDT_TriCoreCMPF : SDTypeProfile<1, 2, [SDTCisVT<0, i32>,
+                                           SDTCisVT<1, i32>,
+                                           SDTCisVT<2, i32>]>;
+def TriCorecmpf    : SDNode<"TriCoreISD::CMPF", SDT_TriCoreCMPF>;
+
+// Type conversion SDNodes (all i32→i32 at the DAG level).
+def SDT_TriCoreConv : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+def TriCoreitof  : SDNode<"TriCoreISD::ITOF",  SDT_TriCoreConv>;
+def TriCoreutof  : SDNode<"TriCoreISD::UTOF",  SDT_TriCoreConv>;
+def TriCoreftoiz : SDNode<"TriCoreISD::FTOIZ", SDT_TriCoreConv>;
+def TriCoreftouz : SDNode<"TriCoreISD::FTOUZ", SDT_TriCoreConv>;
 def TriCoreWrapper : SDNode<"TriCoreISD::Wrapper", SDT_TriCoreWrapper>;
 //def TriCoreWrapper : SDNode<"TriCoreISD::Wrapper", SDTIntUnaryOp>;
 def TriCoreimask   : SDNode<"TriCoreISD::IMASK", SDT_TriCoreImask>;
@@ -213,6 +226,56 @@ let AddedComplexity = 6 in
 def SUBrr : RR<0x0B, 0x08, (outs DataRegs:$d),
 		(ins DataRegs:$s1, DataRegs:$s2), "sub $d, $s1, $s2",
 		[(set DataRegs:$d, (sub DataRegs:$s1, DataRegs:$s2))]>;
+
+// Native single-precision floating-point arithmetic (TC1.6 FPU).
+let n = 0b10 in {
+  def CMPFrr : RR<0x4B, 0x01, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+									"cmp.f $d, $s1, $s2",
+			[(set DataRegs:$d, (TriCorecmpf DataRegs:$s1, DataRegs:$s2))]>;
+
+  // Type-conversion instructions (unary: s2 field is 0).
+  def ITOFrr  : RR<0x4B, 0x18, (outs DataRegs:$d),
+			(ins DataRegs:$s1), "itof $d, $s1",
+			[(set DataRegs:$d, (TriCoreitof  DataRegs:$s1))]>;
+  def UTOFrr  : RR<0x4B, 0x19, (outs DataRegs:$d),
+			(ins DataRegs:$s1), "utof $d, $s1",
+			[(set DataRegs:$d, (TriCoreutof  DataRegs:$s1))]>;
+  def FTOIZrr : RR<0x4B, 0x15, (outs DataRegs:$d),
+			(ins DataRegs:$s1), "ftoiz $d, $s1",
+			[(set DataRegs:$d, (TriCoreftoiz DataRegs:$s1))]>;
+  def FTOUZrr : RR<0x4B, 0x17, (outs DataRegs:$d),
+			(ins DataRegs:$s1), "ftouz $d, $s1",
+			[(set DataRegs:$d, (TriCoreftouz DataRegs:$s1))]>;
+
+  def ADDFrr : RR<0x6B, 0x02, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+									"add.f $d, $s1, $s2",
+			[(set DataRegs:$d,
+				(bitconvert (fadd (bitconvert DataRegs:$s1),
+							(bitconvert DataRegs:$s2))))]>;
+
+  def SUBFrr : RR<0x6B, 0x03, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+									"sub.f $d, $s1, $s2",
+			[(set DataRegs:$d,
+				(bitconvert (fsub (bitconvert DataRegs:$s1),
+							(bitconvert DataRegs:$s2))))]>;
+
+  def MULFrr : RR<0x4B, 0x04, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+									"mul.f $d, $s1, $s2",
+			[(set DataRegs:$d,
+				(bitconvert (fmul (bitconvert DataRegs:$s1),
+							(bitconvert DataRegs:$s2))))]>;
+
+  def DIVFrr : RR<0x4B, 0x05, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+									"div.f $d, $s1, $s2",
+			[(set DataRegs:$d,
+				(bitconvert (fdiv (bitconvert DataRegs:$s1),
+							(bitconvert DataRegs:$s2))))]>;
+}
 
 def RSUBrc : RC<0x8B, 0x08, (outs DataRegs:$d), 
 							(ins DataRegs:$s1, s9imm:$const9) ,"rsub $d, $s1, $const9",

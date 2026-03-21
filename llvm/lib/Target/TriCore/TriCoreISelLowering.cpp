@@ -68,6 +68,16 @@ const char *TriCoreTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "TriCoreISD::SHA";
   case TriCoreISD::EXTR:
     return "TriCoreISD::EXTR";
+  case TriCoreISD::CMPF:
+    return "TriCoreISD::CMPF";
+  case TriCoreISD::ITOF:
+    return "TriCoreISD::ITOF";
+  case TriCoreISD::UTOF:
+    return "TriCoreISD::UTOF";
+  case TriCoreISD::FTOIZ:
+    return "TriCoreISD::FTOIZ";
+  case TriCoreISD::FTOUZ:
+    return "TriCoreISD::FTOUZ";
   }
 }
 
@@ -116,15 +126,21 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
   setOperationAction(ISD::UMUL_LOHI, MVT::i64, Expand);
 
   if (Subtarget.hasFP()) {
-    setOperationAction(ISD::FADD, MVT::f32, Expand);
-    setOperationAction(ISD::FSUB, MVT::f32, Expand);
-    setOperationAction(ISD::FMUL, MVT::f32, Expand);
-    setOperationAction(ISD::FDIV, MVT::f32, Expand);
-    setOperationAction(ISD::SETCC, MVT::f32, Expand);
-    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Expand);
-    setOperationAction(ISD::FP_TO_UINT, MVT::i32, Expand);
-    setOperationAction(ISD::SINT_TO_FP, MVT::f32, Expand);
-    setOperationAction(ISD::UINT_TO_FP, MVT::f32, Expand);
+    setOperationAction(ISD::FADD, MVT::f32, Legal);
+    setOperationAction(ISD::FSUB, MVT::f32, Legal);
+    setOperationAction(ISD::FMUL, MVT::f32, Legal);
+    setOperationAction(ISD::FDIV, MVT::f32, Legal);
+    setOperationAction(ISD::SETCC,     MVT::f32, Custom);
+    setOperationAction(ISD::BR_CC,     MVT::f32, Custom);
+    setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
+    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Custom);
+    setOperationAction(ISD::FP_TO_SINT, MVT::f32, Custom);
+    setOperationAction(ISD::FP_TO_UINT, MVT::i32, Custom);
+    setOperationAction(ISD::FP_TO_UINT, MVT::f32, Custom);
+    setOperationAction(ISD::SINT_TO_FP, MVT::i32, Custom);
+    setOperationAction(ISD::SINT_TO_FP, MVT::f32, Custom);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i32, Custom);
+    setOperationAction(ISD::UINT_TO_FP, MVT::f32, Custom);
   }
 
   // Enable jump tables for switch statements with >= 4 cases.
@@ -158,6 +174,12 @@ SDValue TriCoreTargetLowering::LowerOperation(SDValue Op,
   case ISD::SRL:
   case ISD::SRA:
     return LowerShifts(Op, DAG);
+  case ISD::SINT_TO_FP:
+  case ISD::UINT_TO_FP:
+    return LowerINT_TO_FP(Op, DAG);
+  case ISD::FP_TO_SINT:
+  case ISD::FP_TO_UINT:
+    return LowerFP_TO_INT(Op, DAG);
   case ISD::VASTART:
     return LowerVASTART(Op, DAG);
     // case ISD::SIGN_EXTEND:      	return LowerSIGN_EXTEND(Op, DAG);
@@ -201,6 +223,86 @@ SDValue TriCoreTargetLowering::LowerShifts(SDValue Op,
       unsigned Opcode = (Opc == ISD::SRL) ? TriCoreISD::SH : TriCoreISD::SHA;
       return DAG.getNode(Opcode, dl, MVT::i32, N->getOperand(0), rsubNode);
     }
+  }
+}
+
+SDValue TriCoreTargetLowering::LowerINT_TO_FP(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  SDLoc dl(Op);
+  EVT DstVT = Op.getValueType();
+  SDValue Src = Op.getOperand(0);
+
+  if (Subtarget.hasFP() && Src.getValueType() == MVT::i32 &&
+      (DstVT == MVT::f32 || DstVT == MVT::i32)) {
+    unsigned TriCoreOpc = (Op.getOpcode() == ISD::SINT_TO_FP)
+                              ? TriCoreISD::ITOF : TriCoreISD::UTOF;
+    // Emit native instruction producing i32 (float bits in a DataReg).
+    SDValue I32Result = DAG.getNode(TriCoreOpc, dl, MVT::i32, Src);
+    if (DstVT == MVT::f32)
+      return DAG.getNode(ISD::BITCAST, dl, MVT::f32, I32Result);
+    return I32Result;
+  }
+
+  EVT SrcVT = Src.getValueType();
+  RTLIB::Libcall LC;
+  if (Op.getOpcode() == ISD::SINT_TO_FP)
+    LC = RTLIB::getSINTTOFP(SrcVT, DstVT);
+  else
+    LC = RTLIB::getUINTTOFP(SrcVT, DstVT);
+
+  MakeLibCallOptions CallOptions;
+  return makeLibCall(DAG, LC, DstVT, Src, CallOptions, dl).first;
+}
+
+SDValue TriCoreTargetLowering::LowerFP_TO_INT(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  SDLoc dl(Op);
+  EVT DstVT = Op.getValueType();
+  SDValue Src = Op.getOperand(0);
+
+  if (Subtarget.hasFP() && DstVT == MVT::i32) {
+    // Get the i32 bit-pattern of the float operand.
+    SDValue SrcI32 = (Src.getValueType() == MVT::f32)
+                         ? DAG.getNode(ISD::BITCAST, dl, MVT::i32, Src)
+                         : Src;
+    if (SrcI32.getValueType() == MVT::i32) {
+      unsigned TriCoreOpc = (Op.getOpcode() == ISD::FP_TO_SINT)
+                                ? TriCoreISD::FTOIZ : TriCoreISD::FTOUZ;
+      return DAG.getNode(TriCoreOpc, dl, MVT::i32, SrcI32);
+    }
+  }
+
+  EVT SrcVT = Src.getValueType();
+  RTLIB::Libcall LC;
+  if (Op.getOpcode() == ISD::FP_TO_SINT)
+    LC = RTLIB::getFPTOSINT(SrcVT, DstVT);
+  else
+    LC = RTLIB::getFPTOUINT(SrcVT, DstVT);
+
+  MakeLibCallOptions CallOptions;
+  return makeLibCall(DAG, LC, DstVT, Src, CallOptions, dl).first;
+}
+
+/// Returns the CMP.F result bitmask for the given float CondCode.
+/// TC1.6 FPU CMP.F sets one-hot bits: bit0=UNO, bit1=LT, bit2=EQ, bit3=GT.
+static unsigned fpCondMask(ISD::CondCode CC) {
+  switch (CC) {
+  case ISD::SETOEQ: return 0x4;  // EQ
+  case ISD::SETOGT: return 0x8;  // GT
+  case ISD::SETOGE: return 0xC;  // GT|EQ
+  case ISD::SETOLT: return 0x2;  // LT
+  case ISD::SETOLE: return 0x6;  // LT|EQ
+  case ISD::SETONE: return 0xA;  // LT|GT (ordered NE)
+  case ISD::SETO:   return 0xE;  // LT|EQ|GT (ordered)
+  case ISD::SETUO:  return 0x1;  // UNO
+  case ISD::SETUEQ: return 0x5;  // UNO|EQ
+  case ISD::SETUGT: return 0x9;  // UNO|GT
+  case ISD::SETUGE: return 0xD;  // UNO|GT|EQ
+  case ISD::SETULT: return 0x3;  // UNO|LT
+  case ISD::SETULE: return 0x7;  // UNO|LT|EQ
+  case ISD::SETUNE: return 0xB;  // UNO|LT|GT
+  default:
+    llvm_unreachable("Unexpected FP condition code in fpCondMask");
   }
 }
 
@@ -366,6 +468,19 @@ SDValue TriCoreTargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
   SDValue Dest = Op.getOperand(4);
   SDLoc dl(Op);
 
+  // Handle f32 comparisons via CMP.F + bit-mask test.
+  if (LHS.getValueType() == MVT::f32) {
+    SDValue Ai32 = DAG.getNode(ISD::BITCAST, dl, MVT::i32, LHS);
+    SDValue Bi32 = DAG.getNode(ISD::BITCAST, dl, MVT::i32, RHS);
+    SDValue Raw = DAG.getNode(TriCoreISD::CMPF, dl, MVT::i32, Ai32, Bi32);
+    SDValue Mask = DAG.getConstant(fpCondMask(CC), dl, MVT::i32);
+    SDValue Masked = DAG.getNode(ISD::AND, dl, MVT::i32, Raw, Mask);
+    // Re-use integer BR_CC: branch if Masked != 0.
+    SDValue Zero = DAG.getConstant(0, dl, MVT::i32);
+    return DAG.getNode(ISD::BR_CC, dl, Op.getValueType(), Chain,
+                       DAG.getCondCode(ISD::SETNE), Masked, Zero, Dest);
+  }
+
   SDValue tricoreCC;
   SDValue Flag = EmitCMP(LHS, RHS, CC, dl, DAG, tricoreCC);
 
@@ -386,6 +501,19 @@ SDValue TriCoreTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
   SDLoc dl(Op);
 
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
+
+  // Handle f32 comparisons via CMP.F + bit-mask test.
+  if (LHS.getValueType() == MVT::f32) {
+    SDValue Ai32 = DAG.getNode(ISD::BITCAST, dl, MVT::i32, LHS);
+    SDValue Bi32 = DAG.getNode(ISD::BITCAST, dl, MVT::i32, RHS);
+    SDValue Raw = DAG.getNode(TriCoreISD::CMPF, dl, MVT::i32, Ai32, Bi32);
+    SDValue Mask = DAG.getConstant(fpCondMask(CC), dl, MVT::i32);
+    SDValue Masked = DAG.getNode(ISD::AND, dl, MVT::i32, Raw, Mask);
+    // Normalize to 0/1 via integer SETNE 0; that re-enters LowerSETCC for i32.
+    SDValue Zero = DAG.getConstant(0, dl, MVT::i32);
+    return DAG.getSetCC(dl, Op.getValueType(), Masked, Zero, ISD::SETNE);
+  }
+
   SDValue TargetCC;
   SDValue Flag = EmitCMP(LHS, RHS, CC, dl, DAG, TargetCC);
   SDValue One  = DAG.getConstant(1, dl, Op.getValueType());
@@ -404,6 +532,20 @@ SDValue TriCoreTargetLowering::LowerSELECT_CC(SDValue Op,
   SDValue FalseV = Op.getOperand(3);
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(4))->get();
   SDLoc dl(Op);
+
+  // Handle f32 comparisons via CMP.F + bit-mask test.
+  if (LHS.getValueType() == MVT::f32) {
+    SDValue Ai32 = DAG.getNode(ISD::BITCAST, dl, MVT::i32, LHS);
+    SDValue Bi32 = DAG.getNode(ISD::BITCAST, dl, MVT::i32, RHS);
+    SDValue Raw = DAG.getNode(TriCoreISD::CMPF, dl, MVT::i32, Ai32, Bi32);
+    SDValue Mask = DAG.getConstant(fpCondMask(CC), dl, MVT::i32);
+    SDValue Masked = DAG.getNode(ISD::AND, dl, MVT::i32, Raw, Mask);
+    SDValue Zero = DAG.getConstant(0, dl, MVT::i32);
+    // Re-use integer SELECT_CC (SETNE 0 → select).
+    return DAG.getNode(ISD::SELECT_CC, dl, Op.getValueType(),
+                       Masked, Zero, TrueV, FalseV,
+                       DAG.getCondCode(ISD::SETNE));
+  }
 
   SDValue tricoreCC;
   SDValue Flag = EmitCMP(LHS, RHS, CC, dl, DAG, tricoreCC);

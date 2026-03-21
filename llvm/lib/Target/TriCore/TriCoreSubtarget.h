@@ -22,6 +22,7 @@
 #include "TriCoreSubtarget.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include <memory>
 #include <string>
 
 #define GET_SUBTARGETINFO_HEADER
@@ -36,7 +37,7 @@ class TriCoreSubtarget : public TriCoreGenSubtargetInfo {
 private:
   const DataLayout DL;       // Calculates type size & alignment.
   TriCoreInstrInfo InstrInfo;
-  TriCoreTargetLowering TLInfo;
+  std::unique_ptr<TriCoreTargetLowering> TLInfo;
   TriCoreSelectionDAGInfo TSInfo;
   TriCoreFrameLowering FrameLowering;
   InstrItineraryData InstrItins;
@@ -66,7 +67,7 @@ public:
     return &InstrInfo.getRegisterInfo();
   }
   const TriCoreTargetLowering *getTargetLowering() const override {
-    return &TLInfo;
+    return TLInfo.get();
   }
   const TriCoreFrameLowering *getFrameLowering() const override {
     return &FrameLowering;

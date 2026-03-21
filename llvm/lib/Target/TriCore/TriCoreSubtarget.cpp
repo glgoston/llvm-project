@@ -34,7 +34,11 @@ TriCoreSubtarget::TriCoreSubtarget(const Triple &TT, StringRef CPU, StringRef FS
                            TriCoreTargetMachine &TM)
     : TriCoreGenSubtargetInfo(TT, CPU, CPU, FS),
       DL("e-m:e-p:32:32-i64:32-a:0:32-n32"),
-      InstrInfo(), TLInfo(TM), TSInfo(), FrameLowering() {
+  InstrInfo(), TLInfo(nullptr), TSInfo(), FrameLowering() {
+
+  StringRef CPUName = CPU.empty() ? "generic" : CPU;
+  ParseSubtargetFeatures(CPUName, CPUName, FS);
+  TLInfo = std::make_unique<TriCoreTargetLowering>(TM);
 
 	 UseSmallSection = UseSmallSectionOpt;
 
