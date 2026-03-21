@@ -78,6 +78,8 @@ const char *TriCoreTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "TriCoreISD::FTOIZ";
   case TriCoreISD::FTOUZ:
     return "TriCoreISD::FTOUZ";
+  case TriCoreISD::QSEED:
+    return "TriCoreISD::QSEED";
   }
 }
 
@@ -141,6 +143,8 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
     setOperationAction(ISD::SINT_TO_FP, MVT::f32, Custom);
     setOperationAction(ISD::UINT_TO_FP, MVT::i32, Custom);
     setOperationAction(ISD::UINT_TO_FP, MVT::f32, Custom);
+    // MADD.F / MSUB.F: keep ISD::FMA as-is so DAGToDAG can match it.
+    setOperationAction(ISD::FMA, MVT::f32, Legal);
   }
 
   // Enable jump tables for switch statements with >= 4 cases.

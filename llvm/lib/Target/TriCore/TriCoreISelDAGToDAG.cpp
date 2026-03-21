@@ -127,6 +127,42 @@ static SDValue getI32BitPatternOperand(SDValue V) {
   return SDValue();
 }
 
+static SDValue getFNegI32BitPatternOperand(SDValue V) {
+  if (V.getOpcode() != ISD::FNEG || V.getSimpleValueType() != MVT::f32)
+    return SDValue();
+
+  return getI32BitPatternOperand(V.getOperand(0));
+}
+
+static bool isF32SignMaskI32Constant(SDValue V) {
+  auto *C = dyn_cast<ConstantSDNode>(V);
+  if (!C || V.getSimpleValueType() != MVT::i32)
+    return false;
+  return C->getZExtValue() == 0x80000000u;
+}
+
+static SDValue getNegatedF32I32BitPatternOperand(SDValue V) {
+  if (SDValue FNegBits = getFNegI32BitPatternOperand(V))
+    return FNegBits;
+
+  // During legalization FNEG can become: bitcast(xor(i32_bits, 0x80000000)).
+  if (V.getOpcode() != ISD::BITCAST || V.getSimpleValueType() != MVT::f32)
+    return SDValue();
+
+  SDValue X = V.getOperand(0);
+  if (X.getOpcode() != ISD::XOR || X.getSimpleValueType() != MVT::i32)
+    return SDValue();
+
+  SDValue LHS = X.getOperand(0);
+  SDValue RHS = X.getOperand(1);
+  if (isF32SignMaskI32Constant(LHS) && RHS.getSimpleValueType() == MVT::i32)
+    return RHS;
+  if (isF32SignMaskI32Constant(RHS) && LHS.getSimpleValueType() == MVT::i32)
+    return LHS;
+
+  return SDValue();
+}
+
 /// MatchWrapper - Try to match MSP430ISD::Wrapper node into an addressing mode.
 /// These wrap things that will resolve down into a symbol reference.  If no
 /// match is possible, this returns true, otherwise it returns false.
@@ -474,6 +510,33 @@ void TriCoreDAGToDAGISel::Select(SDNode *N) {
     case ISD::FDIV:
       Opc = TriCore::DIVFrr;
       break;
+    case ISD::FMA: {
+      SDValue A = FPExpr.getOperand(0);
+      SDValue B = FPExpr.getOperand(1);
+      SDValue C = FPExpr.getOperand(2);
+
+      SDValue Addend = getI32BitPatternOperand(C);
+      SDValue MulLHS = getI32BitPatternOperand(A);
+      SDValue MulRHS = getI32BitPatternOperand(B);
+
+      // Signed multiply-sub form: fma(fneg(a), b, c) -> c - a*b.
+      // Match both canonical FNEG and legalized XOR(sign-bit) forms.
+      SDValue NegMulLHS = getNegatedF32I32BitPatternOperand(A);
+      if (Addend && NegMulLHS && MulRHS) {
+        CurDAG->SelectNodeTo(N, TriCore::MSUBFrrr, MVT::i32, Addend, NegMulLHS,
+                             MulRHS);
+        return;
+      }
+
+      // Canonical FMA form: a*b + c -> madd.f d, c, a, b
+      if (Addend && MulLHS && MulRHS) {
+        CurDAG->SelectNodeTo(N, TriCore::MADDFrrr, MVT::i32, Addend, MulLHS,
+                             MulRHS);
+        return;
+      }
+
+      break;
+    }
     }
 
     if (Opc) {
@@ -487,7 +550,10 @@ void TriCoreDAGToDAGISel::Select(SDNode *N) {
     break;
   }
   case ISD::Constant:
-    SelectConstant(N);
+    if (SDNode *C = SelectConstant(N)) {
+      ReplaceNode(N, C);
+      return;
+    }
     break;
   case ISD::FrameIndex: {
     int FI = cast<FrameIndexSDNode>(N)->getIndex();

@@ -65,6 +65,8 @@ def TriCoreitof  : SDNode<"TriCoreISD::ITOF",  SDT_TriCoreConv>;
 def TriCoreutof  : SDNode<"TriCoreISD::UTOF",  SDT_TriCoreConv>;
 def TriCoreftoiz : SDNode<"TriCoreISD::FTOIZ", SDT_TriCoreConv>;
 def TriCoreftouz : SDNode<"TriCoreISD::FTOUZ", SDT_TriCoreConv>;
+// QSEED.F: approximate reciprocal square root seed (i32 bits → i32 bits).
+def TriCoreqseed : SDNode<"TriCoreISD::QSEED", SDT_TriCoreConv>;
 def TriCoreWrapper : SDNode<"TriCoreISD::Wrapper", SDT_TriCoreWrapper>;
 //def TriCoreWrapper : SDNode<"TriCoreISD::Wrapper", SDTIntUnaryOp>;
 def TriCoreimask   : SDNode<"TriCoreISD::IMASK", SDT_TriCoreImask>;
@@ -248,33 +250,36 @@ let n = 0b10 in {
 			(ins DataRegs:$s1), "ftouz $d, $s1",
 			[(set DataRegs:$d, (TriCoreftouz DataRegs:$s1))]>;
 
+  // QSEED.F: approximate 1/sqrt seed (unary; op1=0x4B, op2=0x06).
+  def QSEEDFrr : RR<0x4B, 0x06, (outs DataRegs:$d),
+			(ins DataRegs:$s1), "qseed.f $d, $s1",
+			[(set DataRegs:$d, (TriCoreqseed DataRegs:$s1))]>;
+
+  // MADD.F / MSUB.F: fused multiply-add/sub (RRR format; op1=0x43).
+  // MADD.F D[d], D[s3], D[s1], D[s2]  -->  D[d] = D[s3] + D[s1] * D[s2]
+  // MSUB.F D[d], D[s3], D[s1], D[s2]  -->  D[d] = D[s3] - D[s1] * D[s2]
+  def MADDFrrr : RRR<0x43, 0x6, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"madd.f $d, $s3, $s1, $s2", []>;
+  def MSUBFrrr : RRR<0x43, 0x7, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"msub.f $d, $s3, $s1, $s2", []>;
+
   def ADDFrr : RR<0x6B, 0x02, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
-									"add.f $d, $s1, $s2",
-			[(set DataRegs:$d,
-				(bitconvert (fadd (bitconvert DataRegs:$s1),
-							(bitconvert DataRegs:$s2))))]>;
+									"add.f $d, $s1, $s2", []>;
 
   def SUBFrr : RR<0x6B, 0x03, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
-									"sub.f $d, $s1, $s2",
-			[(set DataRegs:$d,
-				(bitconvert (fsub (bitconvert DataRegs:$s1),
-							(bitconvert DataRegs:$s2))))]>;
+									"sub.f $d, $s1, $s2", []>;
 
   def MULFrr : RR<0x4B, 0x04, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
-									"mul.f $d, $s1, $s2",
-			[(set DataRegs:$d,
-				(bitconvert (fmul (bitconvert DataRegs:$s1),
-							(bitconvert DataRegs:$s2))))]>;
+									"mul.f $d, $s1, $s2", []>;
 
   def DIVFrr : RR<0x4B, 0x05, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
-									"div.f $d, $s1, $s2",
-			[(set DataRegs:$d,
-				(bitconvert (fdiv (bitconvert DataRegs:$s1),
-							(bitconvert DataRegs:$s2))))]>;
+									"div.f $d, $s1, $s2", []>;
 }
 
 def RSUBrc : RC<0x8B, 0x08, (outs DataRegs:$d), 

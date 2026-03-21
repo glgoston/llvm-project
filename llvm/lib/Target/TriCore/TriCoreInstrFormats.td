@@ -323,6 +323,29 @@ class BO<bits<8> op1, bits<6> op2, dag outs, dag ins, string asmstr,
   let Inst{31-28} = memri{13-10};
 }
 
+//===----------------------------------------------------------------------===//
+// 32-bit RRR Instruction Format: <d|op2|s3|00|n|s2|s1|op1>
+// Used for 3-source-register FPU instructions (MADD.F, MSUB.F).
+// op2 is 4 bits (bits[27:24]); bits[19:18] are reserved/zero.
+//===----------------------------------------------------------------------===//
+class RRR<bits<8> op1, bits<4> op2, dag outs, dag ins, string asmstr,
+          list<dag> pattern> : T32<outs, ins, asmstr, pattern> {
+  bits<4> s1;
+  bits<4> s2;
+  bits<4> s3;
+  bits<4> d;
+  bits<2> n;
+
+  let Inst{7-0}   = op1;
+  let Inst{11-8}  = s1;
+  let Inst{15-12} = s2;
+  let Inst{17-16} = n;
+  // bits[19:18] are reserved (zero)
+  let Inst{23-20} = s3;
+  let Inst{27-24} = op2;
+  let Inst{31-28} = d;
+}
+
 // TriCore pseudo instructions format
 class Pseudo<dag outs, dag ins, string asmstr, list<dag> pattern>
     : InstTriCore<outs, ins, asmstr, pattern> {
