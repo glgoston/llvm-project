@@ -619,6 +619,22 @@ void TriCoreDAGToDAGISel::Select(SDNode *N) {
     }
     break;
   }
+  case TriCoreISD::ABSS: {
+    SDValue X = getI32BitPatternOperand(N->getOperand(0));
+    if (X) {
+      CurDAG->SelectNodeTo(N, TriCore::ABSSrr, MVT::i32, X);
+      return;
+    }
+    break;
+  }
+  case TriCoreISD::ABSSH: {
+    SDValue X = getI32BitPatternOperand(N->getOperand(0));
+    if (X) {
+      CurDAG->SelectNodeTo(N, TriCore::ABSSHrr, MVT::i32, X);
+      return;
+    }
+    break;
+  }
   case ISD::STORE: {
     ptyType =
         (N->getOperand(1).getSimpleValueType() == MVT::iPTR) ? true : false;

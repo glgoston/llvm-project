@@ -23,6 +23,18 @@ let TargetPrefix = "tricore" in {  // All intrinsics start with "llvm.tricore.".
                                             [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
                                             [IntrNoMem, IntrSpeculatable]>;
 
+
+  // Saturating absolute value on TC1.6P MAC cores.
+  // abss.i32(x) = (x == INT_MIN) ? INT_MAX : abs(x)
+  // abssh.i32(x) = packed halfword saturating abs:
+  //   each 16-bit half h: (h == INT16_MIN) ? INT16_MAX : abs(h)
+  def int_tricore_abss_i32 : DefaultAttrsIntrinsic<[llvm_i32_ty],
+                                            [llvm_i32_ty],
+                                            [IntrNoMem, IntrSpeculatable]>;
+  def int_tricore_abssh_i32 : DefaultAttrsIntrinsic<[llvm_i32_ty],
+                                            [llvm_i32_ty],
+                                            [IntrNoMem, IntrSpeculatable]>;
+
   // QSEED.F: compute an approximate seed value for 1/sqrt(src).
   // Maps to the TC1.6 QSEED.F instruction (op1=0x4B, op2=0x06, n=0b10).
   // Only meaningful on CPUs with FeatureFP (tc162+).

@@ -63,9 +63,11 @@ enum NodeType {
   FTOUZ,  // float bits → uint, round toward zero (maps to FTOUZ, C fptoui)
   QSEED,  // QSEED.F: approximate reciprocal square root seed (i32→i32 bits)
   MADD,   // integer multiply-add: acc + (x * y)
-  MSUB    // integer multiply-sub: acc - (x * y)
+  MSUB,   // integer multiply-sub: acc - (x * y)
+  ABSS,   // saturating absolute value: (x == INT_MIN) ? INT_MAX : abs(x)
+  ABSSH   // halfword-packed saturating abs (each 16-bit half independently)
 };
-}
+} // namespace TriCoreISD
 
 //===--------------------------------------------------------------------===//
 // TargetLowering Implementation

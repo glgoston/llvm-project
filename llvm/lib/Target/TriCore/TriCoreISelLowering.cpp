@@ -84,6 +84,10 @@ const char *TriCoreTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "TriCoreISD::MADD";
   case TriCoreISD::MSUB:
     return "TriCoreISD::MSUB";
+  case TriCoreISD::ABSS:
+    return "TriCoreISD::ABSS";
+  case TriCoreISD::ABSSH:
+    return "TriCoreISD::ABSSH";
   }
 }
 
@@ -254,6 +258,7 @@ SDValue TriCoreTargetLowering::LowerShifts(SDValue Op,
   }
 }
 
+
 SDValue TriCoreTargetLowering::LowerINT_TO_FP(SDValue Op,
                                               SelectionDAG &DAG) const {
   SDLoc dl(Op);
@@ -344,6 +349,44 @@ SDValue TriCoreTargetLowering::LowerIntrinsic(SDValue Op,
     SDValue Mul = DAG.getNode(ISD::MUL, dl, MVT::i32, X, Y);
     return DAG.getNode((IntName == "llvm.tricore.madd.i32") ? ISD::ADD : ISD::SUB,
                        dl, MVT::i32, Acc, Mul);
+  }
+
+  if (IntName == "llvm.tricore.abss.i32") {
+    SDValue x = Op.getOperand(1);
+    if (Subtarget.hasMAC())
+      return DAG.getNode(TriCoreISD::ABSS, dl, MVT::i32, x);
+    // Non-MAC software fallback: select(x == INT_MIN, INT_MAX, abs(x))
+    SDValue IntMin = DAG.getConstant(0x80000000ULL, dl, MVT::i32);
+    SDValue IntMax = DAG.getConstant(0x7FFFFFFFULL, dl, MVT::i32);
+    SDValue Zero   = DAG.getConstant(0, dl, MVT::i32);
+    SDValue NegX   = DAG.getNode(ISD::SUB, dl, MVT::i32, Zero, x);
+    SDValue AbsX   = DAG.getSelectCC(dl, x, Zero, NegX, x, ISD::SETLT);
+    return DAG.getSelectCC(dl, x, IntMin, IntMax, AbsX, ISD::SETEQ);
+  }
+
+  if (IntName == "llvm.tricore.abssh.i32") {
+    SDValue x = Op.getOperand(1);
+    if (Subtarget.hasMAC())
+      return DAG.getNode(TriCoreISD::ABSSH, dl, MVT::i32, x);
+    // Non-MAC software fallback: packed halfword saturating abs.
+    // Sign-extend each 16-bit half, apply abss_i16, repack.
+    SDValue C16  = DAG.getConstant(16, dl, MVT::i32);
+    SDValue Lo   = DAG.getNode(ISD::SRA, dl, MVT::i32,
+                     DAG.getNode(ISD::SHL, dl, MVT::i32, x, C16), C16);
+    SDValue Hi   = DAG.getNode(ISD::SRA, dl, MVT::i32, x, C16);
+    SDValue ShMin = DAG.getConstant(-32768, dl, MVT::i32);
+    SDValue ShMax = DAG.getConstant(32767, dl, MVT::i32);
+    SDValue Mask  = DAG.getConstant(0xFFFF, dl, MVT::i32);
+    auto abss16 = [&](SDValue v) -> SDValue {
+      SDValue Zero  = DAG.getConstant(0, dl, MVT::i32);
+      SDValue NegV  = DAG.getNode(ISD::SUB, dl, MVT::i32, Zero, v);
+      SDValue AbsV  = DAG.getSelectCC(dl, v, Zero, NegV, v, ISD::SETLT);
+      return DAG.getSelectCC(dl, v, ShMin, ShMax, AbsV, ISD::SETEQ);
+    };
+    SDValue LoSat = DAG.getNode(ISD::AND, dl, MVT::i32, abss16(Lo), Mask);
+    SDValue HiSat = DAG.getNode(ISD::SHL, dl, MVT::i32,
+                      DAG.getNode(ISD::AND, dl, MVT::i32, abss16(Hi), Mask), C16);
+    return DAG.getNode(ISD::OR, dl, MVT::i32, LoSat, HiSat);
   }
 
   return SDValue();

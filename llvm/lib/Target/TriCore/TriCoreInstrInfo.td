@@ -78,6 +78,9 @@ def TriCoresh      : SDNode<"TriCoreISD::SH",  SDT_TriCoreShift>;
 def TriCoresha     : SDNode<"TriCoreISD::SHA", SDT_TriCoreShift>;
 def TriCoremadd    : SDNode<"TriCoreISD::MADD", SDT_TriCoreMAC>;
 def TriCoremsub    : SDNode<"TriCoreISD::MSUB", SDT_TriCoreMAC>;
+// Saturating absolute value SDNodes (reuse SDT_TriCoreConv: i32→i32).
+def TriCoreabss  : SDNode<"TriCoreISD::ABSS",  SDT_TriCoreConv>;
+def TriCoreabssh : SDNode<"TriCoreISD::ABSSH", SDT_TriCoreConv>;
 def TriCoreextr    : SDNode<"TriCoreISD::EXTR", SDT_TriCoreExtract>;
 def TriCoreselectcc: SDNode<"TriCoreISD::SELECT_CC", SDT_TriCoreSelectCC, []>;
 
@@ -268,6 +271,17 @@ let Defs = [PSW] in {
 			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
 			"msub $d, $s3, $s1, $s2",
 			[(set DataRegs:$d, (TriCoremsub DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  // ABSS/ABSS.H (TC1.6P saturating absolute value): unary RR-format.
+  // ABSS:   D[d] = (D[s1] == INT_MIN) ? INT_MAX : abs(D[s1])
+  // ABSS.H: halfword-packed version, each 16-bit half independently.
+  def ABSSrr  : RR<0x0B, 0x5C, (outs DataRegs:$d),
+	  (ins DataRegs:$s1), "abss $d, $s1",
+	  [(set DataRegs:$d, (TriCoreabss DataRegs:$s1))]>;
+
+  def ABSSHrr : RR<0x0B, 0x5D, (outs DataRegs:$d),
+	  (ins DataRegs:$s1), "abss.h $d, $s1",
+	  [(set DataRegs:$d, (TriCoreabssh DataRegs:$s1))]>;
 }
 
 // Native single-precision floating-point arithmetic (TC1.6 FPU).

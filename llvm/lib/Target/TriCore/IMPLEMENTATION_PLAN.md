@@ -19,9 +19,9 @@ Completed since the initial draft:
 - **Phase 3.2**: Added/expanded `globals.ll`, `structs.ll`, `varargs.ll`, `large-stack.ll`, `i8-i16-promotion.ll`, `select.ll`, `shifts.ll`, `mul64.ll`
 - **Phase 4.x**: Native FP instruction selection and tests are implemented (`float-arithmetic.ll`, `float-calling-conv.ll`, native FP test set)
 - **Phase 5.1**: Hardware `div`/`div.u` for tc18+ implemented with tc162 libcall fallback (`llvm/test/CodeGen/TriCore/div.ll`)
-- **Phase 5.2**: Added TC1.6P signed+unsigned saturating arithmetic (`ADDS`/`ADDS.U`/`SUBS`/`SUBS.U`) and integer multiply-accumulate (`MADD`/`MSUB`) via target intrinsics (`llvm.tricore.madd.i32`/`llvm.tricore.msub.i32`); non-MAC fallback to `mul`+`add`/`sub`; tests: `mac-sat.ll`, `mac-encoding.s`, `mac-intrinsics.ll`, `mac-int-encoding.s`
+- **Phase 5.2**: Added TC1.6P saturating arithmetic (`ADDS`/`ADDS.U`/`SUBS`/`SUBS.U`), saturating absolute (`ABSS`/`ABSS.H` via `llvm.tricore.abss.i32`/`llvm.tricore.abssh.i32`), and integer multiply-accumulate (`MADD`/`MSUB` via `llvm.tricore.madd.i32`/`llvm.tricore.msub.i32`); non-MAC fallback for intrinsics; tests: `mac-sat.ll`, `mac-encoding.s`, `mac-intrinsics.ll`, `mac-int-encoding.s`, `abs.ll`, `abs-encoding.s`
 - **Bug fix**: large stack frame prologue/epilogue lowering now correctly handles >255-byte offsets
-- **Current focused validation**: 38/38 passed on the combined Clang+LLVM TriCore test subset
+- **Current focused validation**: 40/40 passed on the combined Clang+LLVM TriCore test subset
 
 ---
 
@@ -153,7 +153,6 @@ Completed since the initial draft:
 - **Tests**: `llvm/test/CodeGen/TriCore/div.ll`
 - **Effort**: Small
 
-### 5.2 DSP Extensions (tc2x)
 ### 5.2 TC1.6P MAC & Saturating Arithmetic (tc2x)
 - **Goal**: Add multiply-accumulate and saturating arithmetic for tc2x (AURIX TC2xx / TC1.6P cores)
 - **Background**: These are *standard* TC1.6P instructions (documented under base Integer Arithmetic
@@ -168,9 +167,11 @@ Completed since the initial draft:
 - **Files**: `TriCoreInstrInfo.td`, `TriCoreISelLowering.cpp`
 - **Details**:
   - Lower `ISD::SADDSAT`/`ISD::UADDSAT` → `adds`/`adds.u`; `ISD::SSUBSAT`/`ISD::USUBSAT` → `subs`/`subs.u`
-  - Lower `ISD::SMUL_LOHI` → `madd` where beneficial; expose MADD.Q via `llvm.tricore.maddq` intrinsic
+  - Expose integer MAC via `llvm.tricore.madd.i32` / `llvm.tricore.msub.i32` (tc2x hardware, non-MAC software fallback)
+  - Expose saturating absolute via `llvm.tricore.abss.i32` / `llvm.tricore.abssh.i32` (tc2x hardware, non-MAC software fallback)
+  - Lower `ISD::SMUL_LOHI` → `madd` where beneficial; expose MADD.Q via `llvm.tricore.maddq` intrinsic (future)
   - Gate all lowerings on `Subtarget.hasMAC()`, expand otherwise
-- **Tests**: `llvm/test/CodeGen/TriCore/mac-sat.ll`
+- **Tests**: `llvm/test/CodeGen/TriCore/mac-sat.ll`, `mac-intrinsics.ll`, `abs.ll`; `llvm/test/MC/TriCore/mac-encoding.s`, `mac-int-encoding.s`, `abs-encoding.s`
 - **Effort**: Medium
 
 ---
