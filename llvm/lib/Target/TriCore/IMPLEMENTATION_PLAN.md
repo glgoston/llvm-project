@@ -19,9 +19,9 @@ Completed since the initial draft:
 - **Phase 3.2**: Added/expanded `globals.ll`, `structs.ll`, `varargs.ll`, `large-stack.ll`, `i8-i16-promotion.ll`, `select.ll`, `shifts.ll`, `mul64.ll`
 - **Phase 4.x**: Native FP instruction selection and tests are implemented (`float-arithmetic.ll`, `float-calling-conv.ll`, native FP test set)
 - **Phase 5.1**: Hardware `div`/`div.u` for tc18+ implemented with tc162 libcall fallback (`llvm/test/CodeGen/TriCore/div.ll`)
-- **Phase 5.2 (partial)**: Added TC1.6P signed saturating arithmetic lowering on tc2x (`ADDS`/`SUBS`) with `llvm/test/CodeGen/TriCore/mac-sat.ll`
+- **Phase 5.2**: Added TC1.6P signed+unsigned saturating arithmetic (`ADDS`/`ADDS.U`/`SUBS`/`SUBS.U`) and integer multiply-accumulate (`MADD`/`MSUB`) via target intrinsics (`llvm.tricore.madd.i32`/`llvm.tricore.msub.i32`); non-MAC fallback to `mul`+`add`/`sub`; tests: `mac-sat.ll`, `mac-encoding.s`, `mac-intrinsics.ll`, `mac-int-encoding.s`
 - **Bug fix**: large stack frame prologue/epilogue lowering now correctly handles >255-byte offsets
-- **Current focused validation**: 35/35 passed on the combined Clang+LLVM TriCore test subset
+- **Current focused validation**: 38/38 passed on the combined Clang+LLVM TriCore test subset
 
 ---
 

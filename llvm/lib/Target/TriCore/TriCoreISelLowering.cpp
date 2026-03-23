@@ -80,6 +80,10 @@ const char *TriCoreTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "TriCoreISD::FTOUZ";
   case TriCoreISD::QSEED:
     return "TriCoreISD::QSEED";
+  case TriCoreISD::MADD:
+    return "TriCoreISD::MADD";
+  case TriCoreISD::MSUB:
+    return "TriCoreISD::MSUB";
   }
 }
 
@@ -136,7 +140,9 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
 
   if (Subtarget.hasMAC()) {
     setOperationAction(ISD::SADDSAT, MVT::i32, Legal);
+    setOperationAction(ISD::UADDSAT, MVT::i32, Legal);
     setOperationAction(ISD::SSUBSAT, MVT::i32, Legal);
+    setOperationAction(ISD::USUBSAT, MVT::i32, Legal);
   }
 
   if (Subtarget.hasFP()) {
@@ -159,6 +165,9 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
     // MADD.F / MSUB.F: keep ISD::FMA as-is so DAGToDAG can match it.
     setOperationAction(ISD::FMA, MVT::f32, Legal);
   }
+
+  // All target intrinsics (qseed.f32, madd.i32, msub.i32, ...).
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
 
   // Enable jump tables for switch statements with >= 4 cases.
   setMinimumJumpTableEntries(4);
@@ -304,20 +313,37 @@ SDValue TriCoreTargetLowering::LowerFP_TO_INT(SDValue Op,
 
 SDValue TriCoreTargetLowering::LowerIntrinsic(SDValue Op,
                                               SelectionDAG &DAG) const {
-  if (!Subtarget.hasFP())
-    return SDValue();
-
   SDLoc dl(Op);
   unsigned IntID = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
   StringRef IntName = Intrinsic::getName(static_cast<Intrinsic::ID>(IntID));
 
   if (IntName == "llvm.tricore.qseed.f32") {
+    if (!Subtarget.hasFP())
+      return SDValue();
+
     SDValue Src = Op.getOperand(1);
     SDValue SrcI32 = (Src.getValueType() == MVT::f32)
                          ? DAG.getNode(ISD::BITCAST, dl, MVT::i32, Src)
                          : Src;
     SDValue ResI32 = DAG.getNode(TriCoreISD::QSEED, dl, MVT::i32, SrcI32);
     return DAG.getNode(ISD::BITCAST, dl, MVT::f32, ResI32);
+  }
+
+  if (IntName == "llvm.tricore.madd.i32" || IntName == "llvm.tricore.msub.i32") {
+    SDValue Acc = Op.getOperand(1);
+    SDValue X   = Op.getOperand(2);
+    SDValue Y   = Op.getOperand(3);
+
+    if (Subtarget.hasMAC()) {
+      unsigned Opc = (IntName == "llvm.tricore.madd.i32")
+                         ? TriCoreISD::MADD
+                         : TriCoreISD::MSUB;
+      return DAG.getNode(Opc, dl, MVT::i32, Acc, X, Y);
+    }
+
+    SDValue Mul = DAG.getNode(ISD::MUL, dl, MVT::i32, X, Y);
+    return DAG.getNode((IntName == "llvm.tricore.madd.i32") ? ISD::ADD : ISD::SUB,
+                       dl, MVT::i32, Acc, Mul);
   }
 
   return SDValue();

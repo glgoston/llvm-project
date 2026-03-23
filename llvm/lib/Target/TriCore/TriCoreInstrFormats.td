@@ -346,6 +346,25 @@ class RRR<bits<8> op1, bits<4> op2, dag outs, dag ins, string asmstr,
   let Inst{31-28} = d;
 }
 
+//===----------------------------------------------------------------------===//
+// 32-bit RRR2 Instruction Format: <d|s3|op2|s2|s1|op1>
+// Used for integer MAC instructions where s3 is the accumulator register.
+//===----------------------------------------------------------------------===//
+class RRR2<bits<8> op1, bits<8> op2, dag outs, dag ins, string asmstr,
+           list<dag> pattern> : T32<outs, ins, asmstr, pattern> {
+  bits<4> s1;
+  bits<4> s2;
+  bits<4> s3;
+  bits<4> d;
+
+  let Inst{7-0}   = op1;
+  let Inst{11-8}  = s1;
+  let Inst{15-12} = s2;
+  let Inst{23-16} = op2;
+  let Inst{27-24} = s3;
+  let Inst{31-28} = d;
+}
+
 // TriCore pseudo instructions format
 class Pseudo<dag outs, dag ins, string asmstr, list<dag> pattern>
     : InstTriCore<outs, ins, asmstr, pattern> {

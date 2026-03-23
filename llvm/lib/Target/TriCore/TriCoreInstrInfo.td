@@ -45,6 +45,10 @@ def SDT_TriCoreWrapper      : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>,
 def SDT_TriCoreShift        : SDTypeProfile<1, 2, [SDTCisSameAs<0, 1>, 
 																									 SDTCisVT<0, i32>, 
 																									 SDTCisVT<2, i32>]>;
+def SDT_TriCoreMAC          : SDTypeProfile<1, 3, [SDTCisVT<0, i32>,
+																				 SDTCisVT<1, i32>,
+																				 SDTCisVT<2, i32>,
+																				 SDTCisVT<3, i32>]>;
 
 def TriCorebrcc    : SDNode<"TriCoreISD::BR_CC", 
 														SDT_TriCoreBrCC, [SDNPHasChain, SDNPInGlue]>;
@@ -72,6 +76,8 @@ def TriCoreWrapper : SDNode<"TriCoreISD::Wrapper", SDT_TriCoreWrapper>;
 def TriCoreimask   : SDNode<"TriCoreISD::IMASK", SDT_TriCoreImask>;
 def TriCoresh      : SDNode<"TriCoreISD::SH",  SDT_TriCoreShift>;
 def TriCoresha     : SDNode<"TriCoreISD::SHA", SDT_TriCoreShift>;
+def TriCoremadd    : SDNode<"TriCoreISD::MADD", SDT_TriCoreMAC>;
+def TriCoremsub    : SDNode<"TriCoreISD::MSUB", SDT_TriCoreMAC>;
 def TriCoreextr    : SDNode<"TriCoreISD::EXTR", SDT_TriCoreExtract>;
 def TriCoreselectcc: SDNode<"TriCoreISD::SELECT_CC", SDT_TriCoreSelectCC, []>;
 
@@ -232,15 +238,36 @@ def SUBrr : RR<0x0B, 0x08, (outs DataRegs:$d),
 // TC1.6P saturating arithmetic (tc2x+).
 // Instruction availability is gated in SelectionDAG legalization.
 let Defs = [PSW] in {
-  def ADDSrr : RR<0x0B, 0x22, (outs DataRegs:$d),
+  def ADDSrr : RR<0x0B, 0x02, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
 			"adds $d, $s1, $s2",
 			[(set DataRegs:$d, (saddsat DataRegs:$s1, DataRegs:$s2))]>;
 
-  def SUBSrr : RR<0x0B, 0x28, (outs DataRegs:$d),
+  def ADDSUrr : RR<0x0B, 0x03, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+			"adds.u $d, $s1, $s2",
+			[(set DataRegs:$d, (uaddsat DataRegs:$s1, DataRegs:$s2))]>;
+
+  def SUBSrr : RR<0x0B, 0x0A, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
 			"subs $d, $s1, $s2",
 			[(set DataRegs:$d, (ssubsat DataRegs:$s1, DataRegs:$s2))]>;
+
+  def SUBSUrr : RR<0x0B, 0x0B, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+			"subs.u $d, $s1, $s2",
+			[(set DataRegs:$d, (usubsat DataRegs:$s1, DataRegs:$s2))]>;
+
+  // MADD/MSUB (TC1.6P integer MAC): D[d] = D[s3] +/- (D[s1] * D[s2]).
+  def MADDrrr : RRR2<0x03, 0x0A, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"madd $d, $s3, $s1, $s2",
+			[(set DataRegs:$d, (TriCoremadd DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  def MSUBrrr : RRR2<0x23, 0x0A, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"msub $d, $s3, $s1, $s2",
+			[(set DataRegs:$d, (TriCoremsub DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
 }
 
 // Native single-precision floating-point arithmetic (TC1.6 FPU).

@@ -61,7 +61,9 @@ enum NodeType {
   UTOF,   // unsigned int → float bits  (maps to UTOF  instruction)
   FTOIZ,  // float bits → int,  round toward zero (maps to FTOIZ, C fptosi)
   FTOUZ,  // float bits → uint, round toward zero (maps to FTOUZ, C fptoui)
-  QSEED   // QSEED.F: approximate reciprocal square root seed (i32→i32 bits)
+  QSEED,  // QSEED.F: approximate reciprocal square root seed (i32→i32 bits)
+  MADD,   // integer multiply-add: acc + (x * y)
+  MSUB    // integer multiply-sub: acc - (x * y)
 };
 }
 
