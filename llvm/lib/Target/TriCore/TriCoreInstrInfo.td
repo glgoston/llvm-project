@@ -282,6 +282,16 @@ let n = 0b10 in {
 									"div.f $d, $s1, $s2", []>;
 }
 
+def DIVrr : RR<0x4B, 0x20, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+			"div $d, $s1, $s2",
+			[(set DataRegs:$d, (sdiv DataRegs:$s1, DataRegs:$s2))]>;
+
+def DIVUrr : RR<0x4B, 0x21, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+			"div.u $d, $s1, $s2",
+			[(set DataRegs:$d, (udiv DataRegs:$s1, DataRegs:$s2))]>;
+
 def RSUBrc : RC<0x8B, 0x08, (outs DataRegs:$d), 
 							(ins DataRegs:$s1, s9imm:$const9) ,"rsub $d, $s1, $const9",
 							[(set DataRegs:$d, (sub immSExt9:$const9, DataRegs:$s1)) ]>;

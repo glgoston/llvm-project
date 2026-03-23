@@ -118,9 +118,16 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
   // setOperationAction(ISD::SRA,           MVT::i16,   Custom);
   // setOperationAction(ISD::SIGN_EXTEND,   MVT::i16,   Expand);
 
-  // Integer division has no hardware support; expand to runtime library calls.
-  setOperationAction(ISD::SDIV, MVT::i32, Expand);
-  setOperationAction(ISD::UDIV, MVT::i32, Expand);
+  // Integer division is available on tc18+ (FeatureDiv).
+  if (Subtarget.hasHWDiv()) {
+    setOperationAction(ISD::SDIV, MVT::i32, Legal);
+    setOperationAction(ISD::UDIV, MVT::i32, Legal);
+  } else {
+    setOperationAction(ISD::SDIV, MVT::i32, Expand);
+    setOperationAction(ISD::UDIV, MVT::i32, Expand);
+  }
+  setOperationAction(ISD::SDIVREM, MVT::i32, Expand);
+  setOperationAction(ISD::UDIVREM, MVT::i32, Expand);
   setOperationAction(ISD::SREM, MVT::i32, Expand);
   setOperationAction(ISD::UREM, MVT::i32, Expand);
   setOperationAction(ISD::MUL, MVT::i64, LibCall);

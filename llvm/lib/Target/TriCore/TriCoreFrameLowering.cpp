@@ -62,25 +62,31 @@ static unsigned materializeOffset(MachineFunction &MF, MachineBasicBlock &MBB,
                                   unsigned ScratchReg = TriCore::A12) {
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
   DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
-  const uint64_t MaxSubImm = 0xfff;
+  // SUBAsc uses u8imm (0-255); anything larger must go through a register.
+  const uint64_t MaxSubImm = 0xff;
 
   if (Offset <= MaxSubImm) {
     // The stack offset fits in the ADD/SUB instruction.
     return 0;
   } else {
     // The stack offset does not fit in the ADD/SUB instruction.
-    // Materialize the offset using MOVLO/MOVHI into ScratchReg.
+    // Materialize the offset into a data register first (MOVrlc outputs
+    // DataRegs), then move it into the address scratch register via MOVArr.
+    unsigned DataScratch = TriCore::D15;
     unsigned OffsetLo = (unsigned)(Offset & 0xffff);
     unsigned OffsetHi = (unsigned)((Offset & 0xffff0000) >> 16);
-    BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVrlc), ScratchReg)
+    BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVrlc), DataScratch)
         .addImm(OffsetLo)
         .setMIFlag(MachineInstr::FrameSetup);
     if (OffsetHi) {
-      BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVHrlc), ScratchReg)
-          .addReg(ScratchReg)
+      BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVHrlc), DataScratch)
+          .addReg(DataScratch)
           .addImm(OffsetHi)
           .setMIFlag(MachineInstr::FrameSetup);
     }
+    BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVArr), ScratchReg)
+        .addReg(DataScratch)
+        .setMIFlag(MachineInstr::FrameSetup);
     return ScratchReg;
   }
 }
