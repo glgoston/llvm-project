@@ -19,6 +19,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/Intrinsics.h"
 
 #include "TriCoreInstrInfo.h"
 
@@ -494,6 +495,24 @@ void TriCoreDAGToDAGISel::Select(SDNode *N) {
       break;
 
     SDValue FPExpr = N->getOperand(0);
+
+    // Handle BITCAST(INTRINSIC_WO_CHAIN llvm.tricore.qseed.f32 x) early.
+    // The intrinsic returns f32 and this outer bitcast expects the i32 bitpattern.
+    if (FPExpr.getOpcode() == ISD::INTRINSIC_WO_CHAIN &&
+        FPExpr.getNumOperands() >= 2) {
+      if (const auto *CN = dyn_cast<ConstantSDNode>(FPExpr.getOperand(0))) {
+        StringRef IntName =
+            Intrinsic::getName(static_cast<Intrinsic::ID>(CN->getZExtValue()));
+        if (IntName == "llvm.tricore.qseed.f32") {
+          SDValue Src = getI32BitPatternOperand(FPExpr.getOperand(1));
+          if (Src) {
+            CurDAG->SelectNodeTo(N, TriCore::QSEEDFrr, MVT::i32, Src);
+            return;
+          }
+        }
+      }
+    }
+
     unsigned Opc = 0;
     switch (FPExpr.getOpcode()) {
     default:
@@ -568,6 +587,17 @@ void TriCoreDAGToDAGISel::Select(SDNode *N) {
     CurDAG->getMachineNode(TriCore::ADDrc, dl, MVT::i32, TFI,
                            CurDAG->getTargetConstant(0, dl, MVT::i32));
     return;
+  }
+  case TriCoreISD::QSEED: {
+    // QSEED.F: approximate reciprocal square root seed.
+    // DAG node: (TriCoreISD::QSEED i32:$src)
+    // Instr: qseed.f $d, $s1
+    SDValue Src = getI32BitPatternOperand(N->getOperand(0));
+    if (Src) {
+      CurDAG->SelectNodeTo(N, TriCore::QSEEDFrr, MVT::i32, Src);
+      return;
+    }
+    break;
   }
   case ISD::STORE: {
     ptyType =

@@ -143,6 +143,7 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
     setOperationAction(ISD::SINT_TO_FP, MVT::f32, Custom);
     setOperationAction(ISD::UINT_TO_FP, MVT::i32, Custom);
     setOperationAction(ISD::UINT_TO_FP, MVT::f32, Custom);
+    setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::f32, Custom);
     // MADD.F / MSUB.F: keep ISD::FMA as-is so DAGToDAG can match it.
     setOperationAction(ISD::FMA, MVT::f32, Legal);
   }
@@ -184,6 +185,8 @@ SDValue TriCoreTargetLowering::LowerOperation(SDValue Op,
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT:
     return LowerFP_TO_INT(Op, DAG);
+  case ISD::INTRINSIC_WO_CHAIN:
+    return LowerIntrinsic(Op, DAG);
   case ISD::VASTART:
     return LowerVASTART(Op, DAG);
     // case ISD::SIGN_EXTEND:      	return LowerSIGN_EXTEND(Op, DAG);
@@ -285,6 +288,27 @@ SDValue TriCoreTargetLowering::LowerFP_TO_INT(SDValue Op,
 
   MakeLibCallOptions CallOptions;
   return makeLibCall(DAG, LC, DstVT, Src, CallOptions, dl).first;
+}
+
+SDValue TriCoreTargetLowering::LowerIntrinsic(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  if (!Subtarget.hasFP())
+    return SDValue();
+
+  SDLoc dl(Op);
+  unsigned IntID = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  StringRef IntName = Intrinsic::getName(static_cast<Intrinsic::ID>(IntID));
+
+  if (IntName == "llvm.tricore.qseed.f32") {
+    SDValue Src = Op.getOperand(1);
+    SDValue SrcI32 = (Src.getValueType() == MVT::f32)
+                         ? DAG.getNode(ISD::BITCAST, dl, MVT::i32, Src)
+                         : Src;
+    SDValue ResI32 = DAG.getNode(TriCoreISD::QSEED, dl, MVT::i32, SrcI32);
+    return DAG.getNode(ISD::BITCAST, dl, MVT::f32, ResI32);
+  }
+
+  return SDValue();
 }
 
 /// Returns the CMP.F result bitmask for the given float CondCode.

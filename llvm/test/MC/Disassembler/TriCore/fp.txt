@@ -1,0 +1,51 @@
+# RUN: llvm-mc -disassemble -triple tricore-unknown-elf %s | FileCheck %s
+
+# TC1.6 native floating-point disassembler round-trip tests.
+
+# --- add.f %d2, %d4, %d5 ---
+0x6b 0x54 0x22 0x20
+# CHECK: add.f %d2, %d4, %d5
+
+# --- sub.f %d2, %d4, %d5 ---
+0x6b 0x54 0x32 0x20
+# CHECK: sub.f %d2, %d4, %d5
+
+# --- mul.f %d2, %d4, %d5 ---
+0x4b 0x54 0x42 0x20
+# CHECK: mul.f %d2, %d4, %d5
+
+# --- div.f %d2, %d4, %d5 ---
+0x4b 0x54 0x52 0x20
+# CHECK: div.f %d2, %d4, %d5
+
+# --- cmp.f %d15, %d4, %d5 ---
+0x4b 0x54 0x12 0xf0
+# CHECK: cmp.f %d15, %d4, %d5
+
+# --- itof %d2, %d4 ---
+0x4b 0x24 0x82 0x21
+# CHECK: itof %d2, %d4
+
+# --- utof %d2, %d4 ---
+0x4b 0x24 0x92 0x21
+# CHECK: utof %d2, %d4
+
+# --- ftoiz %d2, %d4 ---
+0x4b 0x24 0x52 0x21
+# CHECK: ftoiz %d2, %d4
+
+# --- ftouz %d2, %d4 ---
+0x4b 0x24 0x72 0x21
+# CHECK: ftouz %d2, %d4
+
+# --- qseed.f %d2, %d4 ---
+0x4b 0x24 0x62 0x20
+# CHECK: qseed.f %d2, %d4
+
+# --- madd.f %d2, %d6, %d4, %d5 ---
+0x43 0x54 0x62 0x26
+# CHECK: madd.f %d2, %d6, %d4, %d5
+
+# --- msub.f %d2, %d6, %d4, %d5 ---
+0x43 0x54 0x62 0x27
+# CHECK: msub.f %d2, %d6, %d4, %d5

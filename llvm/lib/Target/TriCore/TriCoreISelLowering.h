@@ -129,6 +129,9 @@ private:
   SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
 
+  // Lower TriCore-specific intrinsics.
+  SDValue LowerIntrinsic(SDValue Op, SelectionDAG &DAG) const;
+
   // Lower VA_START for vararg support
   SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
 
