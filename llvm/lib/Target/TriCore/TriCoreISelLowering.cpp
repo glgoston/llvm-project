@@ -134,6 +134,11 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
   setOperationAction(ISD::SMUL_LOHI, MVT::i64, Expand);
   setOperationAction(ISD::UMUL_LOHI, MVT::i64, Expand);
 
+  if (Subtarget.hasMAC()) {
+    setOperationAction(ISD::SADDSAT, MVT::i32, Legal);
+    setOperationAction(ISD::SSUBSAT, MVT::i32, Legal);
+  }
+
   if (Subtarget.hasFP()) {
     setOperationAction(ISD::FADD, MVT::f32, Legal);
     setOperationAction(ISD::FSUB, MVT::f32, Legal);

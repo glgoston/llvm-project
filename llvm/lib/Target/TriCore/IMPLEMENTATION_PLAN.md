@@ -7,9 +7,21 @@ The TriCore backend has a solid foundation with passing tests. The following com
 - **Core backend**: TargetMachine, ISel (SelectionDAG), InstrInfo, RegisterInfo, FrameLowering, SubtargetInfo
 - **MC layer**: AsmPrinter, MCInstLower, CodeEmitter, ELF Object Writer, AsmParser, Disassembler
 - **Calling convention**: EABI v2.3 compliant (D4–D7, E4/E6, A4–A7 for args; D2/E2/A2 for returns)
-- **Instructions**: 50+ instruction families covering integer arithmetic, logic, memory, branches, shifts, bit-field ops
-- **Processor variants**: generic, tc16, tc162 (FP), tc18 (HWDiv), tc2x (DSP) — features defined but not yet implemented
-- **Tests**: 4 CodeGen test files (arithmetic, calling-conv, control-flow, memory)
+- **Instructions**: integer core ISA, native single-precision FP (tc162+), and hardware integer divide (tc18+)
+- **Processor variants**: generic, tc16, tc162 (FeatureFP), tc18 (FeatureFP+FeatureDiv), tc2x (FeatureFP+FeatureDiv+FeatureMAC)
+- **Tests**: broad TriCore CodeGen/MC coverage including globals, structs, varargs, large-stack, float native paths, and div
+
+### Progress Update (2026-03-23)
+
+Completed since the initial draft:
+
+- **Phase 2.4**: `clang/test/CodeGen/tricore-basic.c` is present and passing in focused validation
+- **Phase 3.2**: Added/expanded `globals.ll`, `structs.ll`, `varargs.ll`, `large-stack.ll`, `i8-i16-promotion.ll`, `select.ll`, `shifts.ll`, `mul64.ll`
+- **Phase 4.x**: Native FP instruction selection and tests are implemented (`float-arithmetic.ll`, `float-calling-conv.ll`, native FP test set)
+- **Phase 5.1**: Hardware `div`/`div.u` for tc18+ implemented with tc162 libcall fallback (`llvm/test/CodeGen/TriCore/div.ll`)
+- **Phase 5.2 (partial)**: Added TC1.6P signed saturating arithmetic lowering on tc2x (`ADDS`/`SUBS`) with `llvm/test/CodeGen/TriCore/mac-sat.ll`
+- **Bug fix**: large stack frame prologue/epilogue lowering now correctly handles >255-byte offsets
+- **Current focused validation**: 35/35 passed on the combined Clang+LLVM TriCore test subset
 
 ---
 
@@ -142,11 +154,23 @@ The TriCore backend has a solid foundation with passing tests. The following com
 - **Effort**: Small
 
 ### 5.2 DSP Extensions (tc2x)
-- **Goal**: Add multiply-accumulate and saturating arithmetic
-- **Instructions**: `MADD`, `MADDU`, `MSUB`, `MSUBU`, `ADDS`, `SUBS` (saturating)
+### 5.2 TC1.6P MAC & Saturating Arithmetic (tc2x)
+- **Goal**: Add multiply-accumulate and saturating arithmetic for tc2x (AURIX TC2xx / TC1.6P cores)
+- **Background**: These are *standard* TC1.6P instructions (documented under base Integer Arithmetic
+  in the TC1.6P/TC1.6E ISA manual), not optional DSP extensions. The feature flag `FeatureMAC`
+  indicates the TC1.6P baseline — available on all tc2x and newer cores.
+- **Instructions**:
+  - Saturating add/sub: `ADDS`, `ADDS.U`, `SUBS`, `SUBS.U`
+  - Absolute (saturating): `ABSS`, `ABSS.H`
+  - Multiply-accumulate: `MADD`, `MADDU`, `MSUB`, `MSUBU` (32-bit result in D-reg)
+  - Extended MAC: `MADD.U`, `MSUB.U` (64-bit result in E-reg pair)
+  - Q-format MAC: `MADD.Q`, `MSUB.Q`
 - **Files**: `TriCoreInstrInfo.td`, `TriCoreISelLowering.cpp`
-- **Details**: Can be exposed via intrinsics initially, with DAG combine patterns for auto-vectorization later
-- **Tests**: `llvm/test/CodeGen/TriCore/dsp.ll`
+- **Details**:
+  - Lower `ISD::SADDSAT`/`ISD::UADDSAT` → `adds`/`adds.u`; `ISD::SSUBSAT`/`ISD::USUBSAT` → `subs`/`subs.u`
+  - Lower `ISD::SMUL_LOHI` → `madd` where beneficial; expose MADD.Q via `llvm.tricore.maddq` intrinsic
+  - Gate all lowerings on `Subtarget.hasMAC()`, expand otherwise
+- **Tests**: `llvm/test/CodeGen/TriCore/mac-sat.ll`
 - **Effort**: Medium
 
 ---

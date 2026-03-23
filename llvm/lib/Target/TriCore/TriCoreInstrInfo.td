@@ -229,6 +229,20 @@ def SUBrr : RR<0x0B, 0x08, (outs DataRegs:$d),
 		(ins DataRegs:$s1, DataRegs:$s2), "sub $d, $s1, $s2",
 		[(set DataRegs:$d, (sub DataRegs:$s1, DataRegs:$s2))]>;
 
+// TC1.6P saturating arithmetic (tc2x+).
+// Instruction availability is gated in SelectionDAG legalization.
+let Defs = [PSW] in {
+  def ADDSrr : RR<0x0B, 0x22, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+			"adds $d, $s1, $s2",
+			[(set DataRegs:$d, (saddsat DataRegs:$s1, DataRegs:$s2))]>;
+
+  def SUBSrr : RR<0x0B, 0x28, (outs DataRegs:$d),
+			(ins DataRegs:$s1, DataRegs:$s2),
+			"subs $d, $s1, $s2",
+			[(set DataRegs:$d, (ssubsat DataRegs:$s1, DataRegs:$s2))]>;
+}
+
 // Native single-precision floating-point arithmetic (TC1.6 FPU).
 let n = 0b10 in {
   def CMPFrr : RR<0x4B, 0x01, (outs DataRegs:$d),

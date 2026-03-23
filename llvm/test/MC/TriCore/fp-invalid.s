@@ -1,4 +1,4 @@
-; RUN: not llvm-mc -triple tricore-unknown-elf %s -o /dev/null 2>&1 | FileCheck %s
+; RUN: not llvm-mc -triple tricore-unknown-elf -mcpu=tc162 %s -o /dev/null 2>&1 | FileCheck %s
 
 ; Negative tests: FP instructions reject address-register (A-reg) operands
 ; and reject wrong operand counts.

@@ -1,4 +1,4 @@
-; RUN: llvm-mc --arch tricore --show-encoding %s | FileCheck %s
+; RUN: llvm-mc --arch tricore -mcpu=tc162 --show-encoding %s | FileCheck %s
 
 ; TC1.6 native floating-point instruction encoding tests.
 ; All FP instructions are in the RR (2-register) or RRR (3-register) format
