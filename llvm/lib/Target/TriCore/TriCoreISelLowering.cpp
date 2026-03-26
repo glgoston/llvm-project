@@ -92,6 +92,18 @@ const char *TriCoreTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "TriCoreISD::MADDSU";
   case TriCoreISD::MSUBSU:
     return "TriCoreISD::MSUBSU";
+  case TriCoreISD::MADDU64:
+    return "TriCoreISD::MADDU64";
+  case TriCoreISD::MSUBU64:
+    return "TriCoreISD::MSUBU64";
+  case TriCoreISD::MADDQ:
+    return "TriCoreISD::MADDQ";
+  case TriCoreISD::MSUBQ:
+    return "TriCoreISD::MSUBQ";
+  case TriCoreISD::MADDS:
+    return "TriCoreISD::MADDS";
+  case TriCoreISD::MSUBS:
+    return "TriCoreISD::MSUBS";
   }
 }
 
@@ -420,6 +432,92 @@ SDValue TriCoreTargetLowering::LowerIntrinsic(SDValue Op,
       SDValue Diff = DAG.getNode(ISD::SUB, dl, MVT::i32, Acc, Mul);
       return DAG.getSelectCC(dl, Acc, Mul, Zero, Diff, ISD::SETULT);
     }
+  }
+
+  if (IntName == "llvm.tricore.maddu.i64" ||
+      IntName == "llvm.tricore.msubu.i64") {
+    SDValue Acc = Op.getOperand(1);  // i64 accumulator
+    SDValue X   = Op.getOperand(2);  // i32
+    SDValue Y   = Op.getOperand(3);  // i32
+
+    if (Subtarget.hasMAC()) {
+      unsigned Opc = (IntName == "llvm.tricore.maddu.i64")
+                         ? TriCoreISD::MADDU64
+                         : TriCoreISD::MSUBU64;
+      return DAG.getNode(Opc, dl, MVT::i64, Acc, X, Y);
+    }
+
+    // Non-MAC software fallback: E[acc] +/- zext(x)*zext(y).
+    // ISD::MUL on i64 resolves to a libcall (__muldi3) on non-MAC cores.
+    SDValue ExtX = DAG.getNode(ISD::ZERO_EXTEND, dl, MVT::i64, X);
+    SDValue ExtY = DAG.getNode(ISD::ZERO_EXTEND, dl, MVT::i64, Y);
+    SDValue Mul  = DAG.getNode(ISD::MUL, dl, MVT::i64, ExtX, ExtY);
+    return DAG.getNode((IntName == "llvm.tricore.maddu.i64") ? ISD::ADD : ISD::SUB,
+                       dl, MVT::i64, Acc, Mul);
+  }
+
+  if (IntName == "llvm.tricore.maddq.i32" ||
+      IntName == "llvm.tricore.msubq.i32") {
+    SDValue Acc = Op.getOperand(1);
+    SDValue X   = Op.getOperand(2);
+    SDValue Y   = Op.getOperand(3);
+
+    if (Subtarget.hasMAC()) {
+      unsigned Opc = (IntName == "llvm.tricore.maddq.i32")
+                         ? TriCoreISD::MADDQ
+                         : TriCoreISD::MSUBQ;
+      return DAG.getNode(Opc, dl, MVT::i32, Acc, X, Y);
+    }
+
+    // Non-MAC software fallback: acc +/- ((sext(x)*sext(y)) >> 31).
+    // Computes the upper 32 bits of the signed product (shifted left by 1).
+    SDValue ExtX    = DAG.getNode(ISD::SIGN_EXTEND, dl, MVT::i64, X);
+    SDValue ExtY    = DAG.getNode(ISD::SIGN_EXTEND, dl, MVT::i64, Y);
+    SDValue Mul64   = DAG.getNode(ISD::MUL, dl, MVT::i64, ExtX, ExtY);
+    SDValue Shr     = DAG.getConstant(31, dl, MVT::i64);
+    SDValue Shifted = DAG.getNode(ISD::SRA, dl, MVT::i64, Mul64, Shr);
+    SDValue Prod    = DAG.getNode(ISD::TRUNCATE, dl, MVT::i32, Shifted);
+    return DAG.getNode((IntName == "llvm.tricore.maddq.i32") ? ISD::ADD : ISD::SUB,
+                       dl, MVT::i32, Acc, Prod);
+  }
+
+  if (IntName == "llvm.tricore.madds.i32" ||
+      IntName == "llvm.tricore.msubs.i32") {
+    SDValue Acc = Op.getOperand(1);
+    SDValue X   = Op.getOperand(2);
+    SDValue Y   = Op.getOperand(3);
+
+    if (Subtarget.hasMAC()) {
+      unsigned Opc = (IntName == "llvm.tricore.madds.i32")
+                         ? TriCoreISD::MADDS
+                         : TriCoreISD::MSUBS;
+      return DAG.getNode(Opc, dl, MVT::i32, Acc, X, Y);
+    }
+
+    // Non-MAC software fallback: ssov(acc +/- sext(x)*sext(y), 32).
+    // Extend to 64-bit, compute product, add/sub accumulator, then saturate.
+    // SMIN/SMAX on i64 produce select_cc on i64 (TriCore can't select those),
+    // so we extract hi32 via SRA(res64,32) and use i32 getSelectCC instead.
+    SDValue ExtX   = DAG.getNode(ISD::SIGN_EXTEND, dl, MVT::i64, X);
+    SDValue ExtY   = DAG.getNode(ISD::SIGN_EXTEND, dl, MVT::i64, Y);
+    SDValue ExtAcc = DAG.getNode(ISD::SIGN_EXTEND, dl, MVT::i64, Acc);
+    SDValue Mul    = DAG.getNode(ISD::MUL, dl, MVT::i64, ExtX, ExtY);
+    SDValue Res64  = DAG.getNode(
+        (IntName == "llvm.tricore.madds.i32") ? ISD::ADD : ISD::SUB,
+        dl, MVT::i64, ExtAcc, Mul);
+    // Extract lo32 and hi32 from the 64-bit result.
+    SDValue Lo     = DAG.getNode(ISD::TRUNCATE, dl, MVT::i32, Res64);
+    SDValue HiI64  = DAG.getNode(ISD::SRA, dl, MVT::i64, Res64,
+                                 DAG.getConstant(32, dl, MVT::i64));
+    SDValue Hi     = DAG.getNode(ISD::TRUNCATE, dl, MVT::i32, HiI64);
+    // Overflow iff hi != sign_extend(lo[31]).
+    // If hi > loSign → too large → INT32_MAX; else → too small → INT32_MIN.
+    SDValue LoSign = DAG.getNode(ISD::SRA, dl, MVT::i32, Lo,
+                                 DAG.getConstant(31, dl, MVT::i32));
+    SDValue MaxV   = DAG.getConstant(0x7FFFFFFF, dl, MVT::i32);
+    SDValue MinV   = DAG.getConstant((int32_t)0x80000000U, dl, MVT::i32);
+    SDValue Sat    = DAG.getSelectCC(dl, Hi, LoSign, MaxV, MinV, ISD::SETGT);
+    return DAG.getSelectCC(dl, Hi, LoSign, Sat, Lo, ISD::SETNE);
   }
 
   return SDValue();

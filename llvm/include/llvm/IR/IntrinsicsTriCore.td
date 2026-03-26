@@ -46,6 +46,36 @@ let TargetPrefix = "tricore" in {  // All intrinsics start with "llvm.tricore.".
                                             [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
                                             [IntrNoMem, IntrSpeculatable]>;
 
+  // Extended (64-bit E-reg) unsigned MAC: MADD.U / MSUB.U (RRR2 form).
+  //   maddu.i64(acc, x, y) = E[acc] + D[x]*D[y]  (unsigned 64-bit result)
+  //   msubu.i64(acc, x, y) = E[acc] - D[x]*D[y]  (unsigned 64-bit result)
+  def int_tricore_maddu_i64 : DefaultAttrsIntrinsic<[llvm_i64_ty],
+                                            [llvm_i64_ty, llvm_i32_ty, llvm_i32_ty],
+                                            [IntrNoMem, IntrSpeculatable]>;
+  def int_tricore_msubu_i64 : DefaultAttrsIntrinsic<[llvm_i64_ty],
+                                            [llvm_i64_ty, llvm_i32_ty, llvm_i32_ty],
+                                            [IntrNoMem, IntrSpeculatable]>;
+
+  // Q-format (fractional 32-bit) MAC: MADD.Q / MSUB.Q (RRR1, n=1 form).
+  //   maddq.i32(acc, x, y) = D[acc] + (((D[x]*D[y]) << 1) >> 32)
+  //   msubq.i32(acc, x, y) = D[acc] - (((D[x]*D[y]) << 1) >> 32)
+  def int_tricore_maddq_i32 : DefaultAttrsIntrinsic<[llvm_i32_ty],
+                                            [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+                                            [IntrNoMem, IntrSpeculatable]>;
+  def int_tricore_msubq_i32 : DefaultAttrsIntrinsic<[llvm_i32_ty],
+                                            [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+                                            [IntrNoMem, IntrSpeculatable]>;
+
+  // Signed saturating 32-bit MAC: MADDS / MSUBS (RRR2, op2=0x8A).
+  //   madds.i32(acc, x, y) = ssov(D[acc] + D[x]*D[y], 32)
+  //   msubs.i32(acc, x, y) = ssov(D[acc] - D[x]*D[y], 32)
+  def int_tricore_madds_i32 : DefaultAttrsIntrinsic<[llvm_i32_ty],
+                                            [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+                                            [IntrNoMem, IntrSpeculatable]>;
+  def int_tricore_msubs_i32 : DefaultAttrsIntrinsic<[llvm_i32_ty],
+                                            [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+                                            [IntrNoMem, IntrSpeculatable]>;
+
   // QSEED.F: compute an approximate seed value for 1/sqrt(src).
   // Maps to the TC1.6 QSEED.F instruction (op1=0x4B, op2=0x06, n=0b10).
   // Only meaningful on CPUs with FeatureFP (tc162+).

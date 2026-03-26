@@ -49,6 +49,11 @@ def SDT_TriCoreMAC          : SDTypeProfile<1, 3, [SDTCisVT<0, i32>,
 																				 SDTCisVT<1, i32>,
 																				 SDTCisVT<2, i32>,
 																				 SDTCisVT<3, i32>]>;
+// MAC64: (i64 result) = f(i64 acc, i32 x, i32 y)
+def SDT_TriCoreMAC64        : SDTypeProfile<1, 3, [SDTCisVT<0, i64>,
+                                             SDTCisVT<1, i64>,
+                                             SDTCisVT<2, i32>,
+                                             SDTCisVT<3, i32>]>;
 
 def TriCorebrcc    : SDNode<"TriCoreISD::BR_CC", 
 														SDT_TriCoreBrCC, [SDNPHasChain, SDNPInGlue]>;
@@ -80,6 +85,15 @@ def TriCoremadd    : SDNode<"TriCoreISD::MADD",   SDT_TriCoreMAC>;
 def TriCoremsub    : SDNode<"TriCoreISD::MSUB",   SDT_TriCoreMAC>;
 def TriCoremaddsu  : SDNode<"TriCoreISD::MADDSU", SDT_TriCoreMAC>;
 def TriCoremsubsu  : SDNode<"TriCoreISD::MSUBSU", SDT_TriCoreMAC>;
+// Extended 64-bit E-reg unsigned MAC (MADD.U / MSUB.U).
+def TriCoremaddu64 : SDNode<"TriCoreISD::MADDU64", SDT_TriCoreMAC64>;
+def TriCoremsubu64 : SDNode<"TriCoreISD::MSUBU64", SDT_TriCoreMAC64>;
+// Q-format fractional MAC (MADD.Q / MSUB.Q, n=1, 32-bit D-reg form).
+def TriCoremaddq   : SDNode<"TriCoreISD::MADDQ",   SDT_TriCoreMAC>;
+def TriCoremsubq   : SDNode<"TriCoreISD::MSUBQ",   SDT_TriCoreMAC>;
+// Signed saturating MAC (MADDS / MSUBS, 32-bit D-reg).
+def TriCoremadds   : SDNode<"TriCoreISD::MADDS",   SDT_TriCoreMAC>;
+def TriCoremsubs   : SDNode<"TriCoreISD::MSUBS",   SDT_TriCoreMAC>;
 // Saturating absolute value SDNodes (reuse SDT_TriCoreConv: i32→i32).
 def TriCoreabss  : SDNode<"TriCoreISD::ABSS",  SDT_TriCoreConv>;
 def TriCoreabssh : SDNode<"TriCoreISD::ABSSH", SDT_TriCoreConv>;
@@ -286,6 +300,45 @@ let Defs = [PSW] in {
 			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
 			"msubs.u $d, $s3, $s1, $s2",
 			[(set DataRegs:$d, (TriCoremsubsu DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  // MADDS/MSUBS (TC1.6P signed saturating MAC): 32-bit D-reg result.
+  // MADDS D[d] = ssov(D[s3] + D[s1]*D[s2], 32)   op1=0x03, op2=0x8A
+  // MSUBS D[d] = ssov(D[s3] - D[s1]*D[s2], 32)   op1=0x23, op2=0x8A
+  def MADDSrrr : RRR2<0x03, 0x8A, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"madds $d, $s3, $s1, $s2",
+			[(set DataRegs:$d, (TriCoremadds DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  def MSUBSrrr : RRR2<0x23, 0x8A, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"msubs $d, $s3, $s1, $s2",
+			[(set DataRegs:$d, (TriCoremsubs DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  // MADD.U/MSUB.U (TC1.6P extended unsigned MAC): 64-bit E-reg result.
+  // MADD.U E[d] = E[s3] + D[s1]*D[s2]   op1=0x03, op2=0x68 (RRR2)
+  // MSUB.U E[d] = E[s3] - D[s1]*D[s2]   op1=0x23, op2=0x68 (RRR2)
+  def MADDUerrr : RRR2<0x03, 0x68, (outs ExtRegs:$d),
+			(ins ExtRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"madd.u $d, $s3, $s1, $s2",
+			[(set ExtRegs:$d, (TriCoremaddu64 ExtRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  def MSUBUerrr : RRR2<0x23, 0x68, (outs ExtRegs:$d),
+			(ins ExtRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"msub.u $d, $s3, $s1, $s2",
+			[(set ExtRegs:$d, (TriCoremsubu64 ExtRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  // MADD.Q/MSUB.Q (TC1.6P Q-format fractional MAC): D-reg 32×32, n=1.
+  // D[d] = D[s3] + (((D[s1]*D[s2]) << 1) >> 32)   op1=0x43, op2=0x02, n=1 (RRR1)
+  // D[d] = D[s3] - (((D[s1]*D[s2]) << 1) >> 32)   op1=0x63, op2=0x02, n=1 (RRR1)
+  def MADDQrrr : RRR1<0x43, 0x02, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2, u4imm:$n),
+			"madd.q $d, $s3, $s1, $s2, $n",
+			[]>;  // selected explicitly in DAGToDAG; intrinsic always uses n=1
+
+  def MSUBQrrr : RRR1<0x63, 0x02, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2, u4imm:$n),
+			"msub.q $d, $s3, $s1, $s2, $n",
+			[]>;  // selected explicitly in DAGToDAG; intrinsic always uses n=1
 
   // ABSS/ABSS.H (TC1.6P saturating absolute value): unary RR-format.
   // ABSS:   D[d] = (D[s1] == INT_MIN) ? INT_MAX : abs(D[s1])

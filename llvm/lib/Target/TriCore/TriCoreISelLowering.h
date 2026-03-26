@@ -67,7 +67,13 @@ enum NodeType {
   ABSS,   // saturating absolute value: (x == INT_MIN) ? INT_MAX : abs(x)
   ABSSH,  // halfword-packed saturating abs (each 16-bit half independently)
   MADDSU, // unsigned saturating multiply-add: suov(acc + x*y, 32)  [MADDS.U]
-  MSUBSU  // unsigned saturating multiply-sub: suov(acc - x*y, 32)  [MSUBS.U]
+  MSUBSU, // unsigned saturating multiply-sub: suov(acc - x*y, 32)  [MSUBS.U]
+  MADDU64, // extended unsigned multiply-add: E[acc] + D[x]*D[y]  [MADD.U]
+  MSUBU64, // extended unsigned multiply-sub: E[acc] - D[x]*D[y]  [MSUB.U]
+  MADDQ,   // Q-format multiply-add: acc + (((x*y)<<1)>>32)  [MADD.Q n=1]
+  MSUBQ,   // Q-format multiply-sub: acc - (((x*y)<<1)>>32)  [MSUB.Q n=1]
+  MADDS,   // signed saturating multiply-add: ssov(acc + x*y, 32)  [MADDS]
+  MSUBS    // signed saturating multiply-sub: ssov(acc - x*y, 32)  [MSUBS]
 };
 } // namespace TriCoreISD
 

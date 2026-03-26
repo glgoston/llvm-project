@@ -655,6 +655,72 @@ void TriCoreDAGToDAGISel::Select(SDNode *N) {
     }
     break;
   }
+  case TriCoreISD::MADDU64: {
+    // Accumulator is i64 (ExtRegs) — pass through directly.
+    SDValue Acc = N->getOperand(0);
+    SDValue X   = getI32BitPatternOperand(N->getOperand(1));
+    SDValue Y   = getI32BitPatternOperand(N->getOperand(2));
+    if (X && Y) {
+      CurDAG->SelectNodeTo(N, TriCore::MADDUerrr, MVT::i64, Acc, X, Y);
+      return;
+    }
+    break;
+  }
+  case TriCoreISD::MSUBU64: {
+    SDValue Acc = N->getOperand(0);
+    SDValue X   = getI32BitPatternOperand(N->getOperand(1));
+    SDValue Y   = getI32BitPatternOperand(N->getOperand(2));
+    if (X && Y) {
+      CurDAG->SelectNodeTo(N, TriCore::MSUBUerrr, MVT::i64, Acc, X, Y);
+      return;
+    }
+    break;
+  }
+  case TriCoreISD::MADDQ: {
+    SDValue Acc = getI32BitPatternOperand(N->getOperand(0));
+    SDValue X   = getI32BitPatternOperand(N->getOperand(1));
+    SDValue Y   = getI32BitPatternOperand(N->getOperand(2));
+    if (Acc && X && Y) {
+      // Always use n=1 (standard Q-format scaling).
+      SDValue N1 = CurDAG->getTargetConstant(1, SDLoc(N), MVT::i32);
+      CurDAG->SelectNodeTo(N, TriCore::MADDQrrr, MVT::i32,
+                           ArrayRef<SDValue>({Acc, X, Y, N1}));
+      return;
+    }
+    break;
+  }
+  case TriCoreISD::MSUBQ: {
+    SDValue Acc = getI32BitPatternOperand(N->getOperand(0));
+    SDValue X   = getI32BitPatternOperand(N->getOperand(1));
+    SDValue Y   = getI32BitPatternOperand(N->getOperand(2));
+    if (Acc && X && Y) {
+      SDValue N1 = CurDAG->getTargetConstant(1, SDLoc(N), MVT::i32);
+      CurDAG->SelectNodeTo(N, TriCore::MSUBQrrr, MVT::i32,
+                           ArrayRef<SDValue>({Acc, X, Y, N1}));
+      return;
+    }
+    break;
+  }
+  case TriCoreISD::MADDS: {
+    SDValue Acc = getI32BitPatternOperand(N->getOperand(0));
+    SDValue X   = getI32BitPatternOperand(N->getOperand(1));
+    SDValue Y   = getI32BitPatternOperand(N->getOperand(2));
+    if (Acc && X && Y) {
+      CurDAG->SelectNodeTo(N, TriCore::MADDSrrr, MVT::i32, Acc, X, Y);
+      return;
+    }
+    break;
+  }
+  case TriCoreISD::MSUBS: {
+    SDValue Acc = getI32BitPatternOperand(N->getOperand(0));
+    SDValue X   = getI32BitPatternOperand(N->getOperand(1));
+    SDValue Y   = getI32BitPatternOperand(N->getOperand(2));
+    if (Acc && X && Y) {
+      CurDAG->SelectNodeTo(N, TriCore::MSUBSrrr, MVT::i32, Acc, X, Y);
+      return;
+    }
+    break;
+  }
   case ISD::STORE: {
     ptyType =
         (N->getOperand(1).getSimpleValueType() == MVT::iPTR) ? true : false;
