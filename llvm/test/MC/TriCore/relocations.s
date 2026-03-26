@@ -9,12 +9,12 @@
         .long data_symbol
 
 # CHECK: Relocations [
-# CHECK: Section ({{[0-9]+}}) .rel.text {
+# CHECK: Section ({{[0-9]+}}) .rela.text {
 # CHECK: 0x0 R_TRICORE_24REL callee
 # CHECK: 0x4 R_TRICORE_16REL branch_target
 # CHECK-NOT: R_TRICORE_16REL branch_target
 # CHECK: }
-# CHECK: Section ({{[0-9]+}}) .rel.data {
+# CHECK: Section ({{[0-9]+}}) .rela.data {
 # CHECK: 0x0 R_TRICORE_32ABS data_symbol
 # CHECK: }
 # CHECK: ]

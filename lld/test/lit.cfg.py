@@ -73,6 +73,7 @@ llvm_config.feature_config(
                           'PowerPC': 'ppc',
                           'RISCV': 'riscv',
                           'Sparc': 'sparc',
+                          'TriCore': 'tricore',
                           'WebAssembly': 'wasm',
                           'X86': 'x86'}),
      ('--assertion-mode', {'ON': 'asserts'}),

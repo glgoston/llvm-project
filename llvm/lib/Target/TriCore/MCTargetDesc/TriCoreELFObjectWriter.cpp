@@ -76,7 +76,7 @@ unsigned TriCoreELFObjectWriter::getRelocType(MCContext &Ctx,
 TriCoreELFObjectWriter::TriCoreELFObjectWriter(uint8_t OSABI)
     : MCELFObjectTargetWriter(/*Is64Bit*/ false, OSABI,
                               /*ELF::EM_TriCore*/ ELF::EM_TRICORE,
-                              /*HasRelocationAddend*/ false) {}
+                              /*HasRelocationAddend*/ true) {}
 
 TriCoreELFObjectWriter::~TriCoreELFObjectWriter() {}
 

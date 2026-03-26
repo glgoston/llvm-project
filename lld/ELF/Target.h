@@ -177,6 +177,7 @@ TargetInfo *getPPC64TargetInfo();
 TargetInfo *getPPCTargetInfo();
 TargetInfo *getRISCVTargetInfo();
 TargetInfo *getSPARCV9TargetInfo();
+TargetInfo *getTriCoreTargetInfo();
 TargetInfo *getX86TargetInfo();
 TargetInfo *getX86_64TargetInfo();
 template <class ELFT> TargetInfo *getMipsTargetInfo();
