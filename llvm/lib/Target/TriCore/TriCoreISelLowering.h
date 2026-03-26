@@ -65,7 +65,9 @@ enum NodeType {
   MADD,   // integer multiply-add: acc + (x * y)
   MSUB,   // integer multiply-sub: acc - (x * y)
   ABSS,   // saturating absolute value: (x == INT_MIN) ? INT_MAX : abs(x)
-  ABSSH   // halfword-packed saturating abs (each 16-bit half independently)
+  ABSSH,  // halfword-packed saturating abs (each 16-bit half independently)
+  MADDSU, // unsigned saturating multiply-add: suov(acc + x*y, 32)  [MADDS.U]
+  MSUBSU  // unsigned saturating multiply-sub: suov(acc - x*y, 32)  [MSUBS.U]
 };
 } // namespace TriCoreISD
 

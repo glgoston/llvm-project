@@ -19,9 +19,9 @@ Completed since the initial draft:
 - **Phase 3.2**: Added/expanded `globals.ll`, `structs.ll`, `varargs.ll`, `large-stack.ll`, `i8-i16-promotion.ll`, `select.ll`, `shifts.ll`, `mul64.ll`
 - **Phase 4.x**: Native FP instruction selection and tests are implemented (`float-arithmetic.ll`, `float-calling-conv.ll`, native FP test set)
 - **Phase 5.1**: Hardware `div`/`div.u` for tc18+ implemented with tc162 libcall fallback (`llvm/test/CodeGen/TriCore/div.ll`)
-- **Phase 5.2**: Added TC1.6P saturating arithmetic (`ADDS`/`ADDS.U`/`SUBS`/`SUBS.U`), saturating absolute (`ABSS`/`ABSS.H` via `llvm.tricore.abss.i32`/`llvm.tricore.abssh.i32`), and integer multiply-accumulate (`MADD`/`MSUB` via `llvm.tricore.madd.i32`/`llvm.tricore.msub.i32`); non-MAC fallback for intrinsics; tests: `mac-sat.ll`, `mac-encoding.s`, `mac-intrinsics.ll`, `mac-int-encoding.s`, `abs.ll`, `abs-encoding.s`
+- **Phase 5.2**: Added TC1.6P saturating arithmetic (`ADDS`/`ADDS.U`/`SUBS`/`SUBS.U`), saturating absolute (`ABSS`/`ABSS.H` via `llvm.tricore.abss.i32`/`llvm.tricore.abssh.i32`), integer multiply-accumulate (`MADD`/`MSUB` via `llvm.tricore.madd.i32`/`llvm.tricore.msub.i32`), and unsigned saturating MAC (`MADDS.U`/`MSUBS.U` via `llvm.tricore.maddsu.i32`/`llvm.tricore.msubsu.i32`); non-MAC `getSelectCC` fallbacks for all intrinsics; tests: `mac-sat.ll`, `mac-encoding.s`, `mac-intrinsics.ll`, `mac-int-encoding.s`, `abs.ll`, `abs-encoding.s`, `mac-unsigned-sat.ll`, `mac-unsigned-sat-encoding.s`
 - **Bug fix**: large stack frame prologue/epilogue lowering now correctly handles >255-byte offsets
-- **Current focused validation**: 40/40 passed on the combined Clang+LLVM TriCore test subset
+- **Current focused validation**: 42/42 passed on the combined Clang+LLVM TriCore test subset
 
 ---
 

@@ -76,8 +76,10 @@ def TriCoreWrapper : SDNode<"TriCoreISD::Wrapper", SDT_TriCoreWrapper>;
 def TriCoreimask   : SDNode<"TriCoreISD::IMASK", SDT_TriCoreImask>;
 def TriCoresh      : SDNode<"TriCoreISD::SH",  SDT_TriCoreShift>;
 def TriCoresha     : SDNode<"TriCoreISD::SHA", SDT_TriCoreShift>;
-def TriCoremadd    : SDNode<"TriCoreISD::MADD", SDT_TriCoreMAC>;
-def TriCoremsub    : SDNode<"TriCoreISD::MSUB", SDT_TriCoreMAC>;
+def TriCoremadd    : SDNode<"TriCoreISD::MADD",   SDT_TriCoreMAC>;
+def TriCoremsub    : SDNode<"TriCoreISD::MSUB",   SDT_TriCoreMAC>;
+def TriCoremaddsu  : SDNode<"TriCoreISD::MADDSU", SDT_TriCoreMAC>;
+def TriCoremsubsu  : SDNode<"TriCoreISD::MSUBSU", SDT_TriCoreMAC>;
 // Saturating absolute value SDNodes (reuse SDT_TriCoreConv: i32→i32).
 def TriCoreabss  : SDNode<"TriCoreISD::ABSS",  SDT_TriCoreConv>;
 def TriCoreabssh : SDNode<"TriCoreISD::ABSSH", SDT_TriCoreConv>;
@@ -271,6 +273,19 @@ let Defs = [PSW] in {
 			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
 			"msub $d, $s3, $s1, $s2",
 			[(set DataRegs:$d, (TriCoremsub DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  // MADDS.U/MSUBS.U (TC1.6P unsigned saturating MAC): 32-bit D-reg result.
+  // MADDS.U D[d] = suov(D[s3] + D[s1]*D[s2], 32)   op1=0x03, op2=0x88
+  // MSUBS.U D[d] = suov(D[s3] - D[s1]*D[s2], 32)   op1=0x23, op2=0x88
+  def MADDSUrrr : RRR2<0x03, 0x88, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"madds.u $d, $s3, $s1, $s2",
+			[(set DataRegs:$d, (TriCoremaddsu DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
+
+  def MSUBSUrrr : RRR2<0x23, 0x88, (outs DataRegs:$d),
+			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
+			"msubs.u $d, $s3, $s1, $s2",
+			[(set DataRegs:$d, (TriCoremsubsu DataRegs:$s3, DataRegs:$s1, DataRegs:$s2))]>;
 
   // ABSS/ABSS.H (TC1.6P saturating absolute value): unary RR-format.
   // ABSS:   D[d] = (D[s1] == INT_MIN) ? INT_MAX : abs(D[s1])

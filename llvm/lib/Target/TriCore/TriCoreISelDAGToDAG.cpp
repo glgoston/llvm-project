@@ -635,6 +635,26 @@ void TriCoreDAGToDAGISel::Select(SDNode *N) {
     }
     break;
   }
+  case TriCoreISD::MADDSU: {
+    SDValue Acc = getI32BitPatternOperand(N->getOperand(0));
+    SDValue X   = getI32BitPatternOperand(N->getOperand(1));
+    SDValue Y   = getI32BitPatternOperand(N->getOperand(2));
+    if (Acc && X && Y) {
+      CurDAG->SelectNodeTo(N, TriCore::MADDSUrrr, MVT::i32, Acc, X, Y);
+      return;
+    }
+    break;
+  }
+  case TriCoreISD::MSUBSU: {
+    SDValue Acc = getI32BitPatternOperand(N->getOperand(0));
+    SDValue X   = getI32BitPatternOperand(N->getOperand(1));
+    SDValue Y   = getI32BitPatternOperand(N->getOperand(2));
+    if (Acc && X && Y) {
+      CurDAG->SelectNodeTo(N, TriCore::MSUBSUrrr, MVT::i32, Acc, X, Y);
+      return;
+    }
+    break;
+  }
   case ISD::STORE: {
     ptyType =
         (N->getOperand(1).getSimpleValueType() == MVT::iPTR) ? true : false;

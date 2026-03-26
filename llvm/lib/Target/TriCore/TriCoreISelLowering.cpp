@@ -88,6 +88,10 @@ const char *TriCoreTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "TriCoreISD::ABSS";
   case TriCoreISD::ABSSH:
     return "TriCoreISD::ABSSH";
+  case TriCoreISD::MADDSU:
+    return "TriCoreISD::MADDSU";
+  case TriCoreISD::MSUBSU:
+    return "TriCoreISD::MSUBSU";
   }
 }
 
@@ -170,7 +174,7 @@ TriCoreTargetLowering::TriCoreTargetLowering(TriCoreTargetMachine &TriCoreTM)
     setOperationAction(ISD::FMA, MVT::f32, Legal);
   }
 
-  // All target intrinsics (qseed.f32, madd.i32, msub.i32, ...).
+  // All target intrinsics (qseed.f32, madd.i32, msub.i32, maddsu.i32, ...).
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
 
   // Enable jump tables for switch statements with >= 4 cases.
@@ -387,6 +391,35 @@ SDValue TriCoreTargetLowering::LowerIntrinsic(SDValue Op,
     SDValue HiSat = DAG.getNode(ISD::SHL, dl, MVT::i32,
                       DAG.getNode(ISD::AND, dl, MVT::i32, abss16(Hi), Mask), C16);
     return DAG.getNode(ISD::OR, dl, MVT::i32, LoSat, HiSat);
+  }
+
+  if (IntName == "llvm.tricore.maddsu.i32" ||
+      IntName == "llvm.tricore.msubsu.i32") {
+    SDValue Acc = Op.getOperand(1);
+    SDValue X   = Op.getOperand(2);
+    SDValue Y   = Op.getOperand(3);
+
+    if (Subtarget.hasMAC()) {
+      unsigned Opc = (IntName == "llvm.tricore.maddsu.i32")
+                         ? TriCoreISD::MADDSU
+                         : TriCoreISD::MSUBSU;
+      return DAG.getNode(Opc, dl, MVT::i32, Acc, X, Y);
+    }
+
+    // Non-MAC software fallback: saturating unsigned add/sub after multiply.
+    // Use getSelectCC to avoid ISD::SELECT with i32 condition (unselectable).
+    SDValue Mul  = DAG.getNode(ISD::MUL, dl, MVT::i32, X, Y);
+    SDValue Zero = DAG.getConstant(0, dl, MVT::i32);
+    SDValue MaxU = DAG.getConstant(0xFFFFFFFFU, dl, MVT::i32);
+    if (IntName == "llvm.tricore.maddsu.i32") {
+      // sum = acc + mul; if sum < acc (carry), return UINT_MAX, else sum.
+      SDValue Sum = DAG.getNode(ISD::ADD, dl, MVT::i32, Acc, Mul);
+      return DAG.getSelectCC(dl, Sum, Acc, MaxU, Sum, ISD::SETULT);
+    } else {
+      // diff = acc - mul; if acc < mul (borrow), return 0, else diff.
+      SDValue Diff = DAG.getNode(ISD::SUB, dl, MVT::i32, Acc, Mul);
+      return DAG.getSelectCC(dl, Acc, Mul, Zero, Diff, ISD::SETULT);
+    }
   }
 
   return SDValue();
