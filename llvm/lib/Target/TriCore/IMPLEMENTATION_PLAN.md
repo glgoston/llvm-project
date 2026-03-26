@@ -21,6 +21,7 @@ Completed since the initial draft:
 - **Phase 5.1**: Hardware `div`/`div.u` for tc18+ implemented with tc162 libcall fallback (`llvm/test/CodeGen/TriCore/div.ll`)
 - **Phase 5.2**: Added TC1.6P saturating arithmetic (`ADDS`/`ADDS.U`/`SUBS`/`SUBS.U`), saturating absolute (`ABSS`/`ABSS.H` via `llvm.tricore.abss.i32`/`llvm.tricore.abssh.i32`), integer multiply-accumulate (`MADD`/`MSUB` via `llvm.tricore.madd.i32`/`llvm.tricore.msub.i32`), unsigned saturating MAC (`MADDS.U`/`MSUBS.U` via `llvm.tricore.maddsu.i32`/`llvm.tricore.msubsu.i32`), extended 64-bit unsigned MAC (`MADD.U`/`MSUB.U` via `llvm.tricore.maddu.i64`/`llvm.tricore.msubu.i64`), Q-format fractional MAC (`MADD.Q`/`MSUB.Q` via `llvm.tricore.maddq.i32`/`llvm.tricore.msubq.i32`), and signed saturating MAC (`MADDS`/`MSUBS` via `llvm.tricore.madds.i32`/`llvm.tricore.msubs.i32`); non-MAC fallbacks for all intrinsics; new RRR1 instruction format class; tests: `mac-sat.ll`, `mac-encoding.s`, `mac-intrinsics.ll`, `mac-int-encoding.s`, `abs.ll`, `abs-encoding.s`, `mac-unsigned-sat.ll`, `mac-unsigned-sat-encoding.s`, `mac-extended.ll`, `mac-extended-encoding.s`, `mac-signed-sat.ll`, `mac-signed-sat-encoding.s`
 - **Bug fix**: large stack frame prologue/epilogue lowering now correctly handles >255-byte offsets
+- **Phase 6.1**: Fixed SBR (16-bit JNZ/JZ) register encoding bug — `JUMP_16` multiclass renamed `$s1`→`$s2` so SBR's `s2` field correctly encodes the register operand (was using branch-target operand for both fields, producing duplicate fixups and wrong register bits). Fixed `applyFixup` to use proper fixup byte count from `getFixupKindInfo` instead of hardcoded 4. Fixed `processFixupValue` to not force `IsResolved=true` for all fixups — now only TriCore-specific fixups are validated internally; standard fixup kinds (FK_Data_*) are handled by the default MC machinery. Extended `getRelocType` to map `FK_Data_4`→`R_TRICORE_32ABS` (non-PCrel) or `R_TRICORE_32REL` (PCrel), `FK_Data_2`→`R_TRICORE_16ABS`, `FK_PCRel_4`→`R_TRICORE_32REL`, so data-section symbol refs and jump tables no longer crash the ELF writer. Updated `relocations.s` to verify no duplicate jnz reloc and R_TRICORE_32ABS for `.long symbol`. Added encoding byte checks to `asm-branch.s` for JNZ/JZ register correctness.
 - **Current focused validation**: 42/42 passed on the combined TriCore MC/CodeGen test suite
 
 ---
@@ -197,10 +198,16 @@ Completed since the initial draft:
 
 ## Phase 7 — Code Quality & Optimization
 
-### 7.1 Scheduling Model
+### 7.1 Scheduling Model ✅ COMPLETE
 - **Goal**: Define a pipeline model for instruction scheduling
-- **Files**: `TriCoreSchedule.td` (new), referenced from `TriCore.td`
-- **Details**: Define functional units, instruction latencies, resource usage
+- **Files**: `TriCoreSchedule.td` (new), `TriCore.td`, `TriCoreInstrFormats.td`, `TriCoreInstrInfo.td`
+- **Details**: Created full pipeline scheduling model with 4 functional units (TC_Int, TC_Ls, TC_Mac, TC_Fp),
+  12 InstrItinClass defs with measured latencies (ALU=1, LD/ST=2, MUL/MAC=3, FP=4, FPCVT=3, FPCMP=2, DIV/FPDIV=8, BR=1),
+  dual itinerary+SchedWrite approach, PostRAScheduler enabled. All 5 processor variants converted to
+  `ProcessorModel<"name", TriCoreSchedModel, [features]>`. All instruction groups annotated with correct
+  itinerary class. `large-stack.ll` test updated to match PostRA-scheduled output (mov %d2,%d4 moved
+  before st.w to fill load latency slot — valid and correct).
+- **Verified**: 42/42 tests passing
 - **Effort**: Medium
 
 ### 7.2 Peephole Optimizations

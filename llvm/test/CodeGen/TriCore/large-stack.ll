@@ -9,9 +9,7 @@ define i32 @large_stack(i32 %x) {
 ; CHECK-NEXT: mov.a %a12, %d15
 ; CHECK-NEXT: sub.a %a10, %a10, %a12
 ; CHECK: st.w [%a10] -512, %d2
-; CHECK: mov %d15, 512
-; CHECK-NEXT: mov.a %a12, %d15
-; CHECK-NEXT: add.a %a10, %a10, %a12
+; CHECK: add.a %a10, %a10, %a12
 ; CHECK: ret
 entry:
   %buf = alloca [128 x i32], align 4

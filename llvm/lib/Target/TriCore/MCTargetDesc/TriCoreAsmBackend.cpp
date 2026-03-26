@@ -46,7 +46,8 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   unsigned Kind = Fixup.getKind();
   switch (Kind) {
   default:
-    llvm_unreachable("Unknown fixup kind!");
+    // Standard fixup kinds (FK_Data_1/2/4, FK_PCRel_*) need no adjustment.
+    return Value;
   case TriCore::fixup_tricore_branch16:
     return Value & 0xffff;
   case TriCore::fixup_call:
@@ -71,11 +72,10 @@ void TriCoreAsmBackend::processFixupValue(const MCAssembler &Asm,
                                           const MCFragment *DF,
                                           const MCValue &Target,
                                           uint64_t &Value, bool &IsResolved) {
-  // We always have resolved fixups for now.
-  IsResolved = true;
-  // At this point we'll ignore the value returned by adjustFixupValue as
-  // we are only checking if the fixup can be applied correctly.
-  (void)adjustFixupValue(Fixup, Value, &Asm.getContext());
+  // Only validate TriCore-specific fixups; let standard fixup kinds (FK_Data_*,
+  // FK_PCRel_*) be resolved by the default assembler machinery.
+  if (Fixup.getKind() >= FirstTargetFixupKind)
+    (void)adjustFixupValue(Fixup, Value, &Asm.getContext());
 }
 
 void TriCoreAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
@@ -83,7 +83,9 @@ void TriCoreAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                                    MutableArrayRef<char> Data, uint64_t Value,
                                    bool IsResolved,
                                    const MCSubtargetInfo *STI) const {
-  unsigned NumBytes = 4;
+  // Use the actual byte width of the fixup from the kind info.
+  MCFixupKind Kind = Fixup.getKind();
+  unsigned NumBytes = (getFixupKindInfo(Kind).TargetSize + 7) / 8;
   Value = adjustFixupValue(Fixup, Value);
   if (!Value) {
     return; // Doesn't change encoding.

@@ -257,6 +257,8 @@ def SUBrr : RR<0x0B, 0x08, (outs DataRegs:$d),
 // TC1.6P saturating arithmetic (tc2x+).
 // Instruction availability is gated in SelectionDAG legalization.
 let Defs = [PSW] in {
+  // ─── Saturating add/sub: 1-cycle integer ALU ─────────────────────────────
+  let Itinerary = IIC_SAT in {
   def ADDSrr : RR<0x0B, 0x02, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
 			"adds $d, $s1, $s2",
@@ -277,6 +279,10 @@ let Defs = [PSW] in {
 			"subs.u $d, $s1, $s2",
 			[(set DataRegs:$d, (usubsat DataRegs:$s1, DataRegs:$s2))]>;
 
+  } // let Itinerary = IIC_SAT
+
+  // ─── Integer MAC: 3-cycle multiply-accumulate unit ────────────────────────
+  let Itinerary = IIC_MAC in {
   // MADD/MSUB (TC1.6P integer MAC): D[d] = D[s3] +/- (D[s1] * D[s2]).
   def MADDrrr : RRR2<0x03, 0x0A, (outs DataRegs:$d),
 			(ins DataRegs:$s3, DataRegs:$s1, DataRegs:$s2),
@@ -340,6 +346,10 @@ let Defs = [PSW] in {
 			"msub.q $d, $s3, $s1, $s2, $n",
 			[]>;  // selected explicitly in DAGToDAG; intrinsic always uses n=1
 
+  } // let Itinerary = IIC_MAC
+
+  // ─── Saturating absolute: 1-cycle integer ALU ───────────────────────────
+  let Itinerary = IIC_SAT in {
   // ABSS/ABSS.H (TC1.6P saturating absolute value): unary RR-format.
   // ABSS:   D[d] = (D[s1] == INT_MIN) ? INT_MAX : abs(D[s1])
   // ABSS.H: halfword-packed version, each 16-bit half independently.
@@ -350,15 +360,20 @@ let Defs = [PSW] in {
   def ABSSHrr : RR<0x0B, 0x5D, (outs DataRegs:$d),
 	  (ins DataRegs:$s1), "abss.h $d, $s1",
 	  [(set DataRegs:$d, (TriCoreabssh DataRegs:$s1))]>;
+  } // let Itinerary = IIC_SAT
 }
 
 // Native single-precision floating-point arithmetic (TC1.6 FPU).
 let n = 0b10 in {
+  // ─── FP compare: 2 cycles ─────────────────────────────────────────────────
+  let Itinerary = IIC_FPCMP in
   def CMPFrr : RR<0x4B, 0x01, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
 									"cmp.f $d, $s1, $s2",
 			[(set DataRegs:$d, (TriCorecmpf DataRegs:$s1, DataRegs:$s2))]>;
 
+  // ─── FP type-conversion: 3 cycles ────────────────────────────────────────
+  let Itinerary = IIC_FPCVT in {
   // Type-conversion instructions (unary: s2 field is 0).
   def ITOFrr  : RR<0x4B, 0x18, (outs DataRegs:$d),
 			(ins DataRegs:$s1), "itof $d, $s1",
@@ -377,7 +392,10 @@ let n = 0b10 in {
   def QSEEDFrr : RR<0x4B, 0x06, (outs DataRegs:$d),
 			(ins DataRegs:$s1), "qseed.f $d, $s1",
 			[(set DataRegs:$d, (TriCoreqseed DataRegs:$s1))]>;
+  } // let Itinerary = IIC_FPCVT
 
+  // ─── FP arithmetic: 4-5 cycles ──────────────────────────────────────────
+  let Itinerary = IIC_FP in {
   // MADD.F / MSUB.F: fused multiply-add/sub (RRR format; op1=0x43).
   // MADD.F D[d], D[s3], D[s1], D[s2]  -->  D[d] = D[s3] + D[s1] * D[s2]
   // MSUB.F D[d], D[s3], D[s1], D[s2]  -->  D[d] = D[s3] - D[s1] * D[s2]
@@ -400,11 +418,17 @@ let n = 0b10 in {
 			(ins DataRegs:$s1, DataRegs:$s2),
 									"mul.f $d, $s1, $s2", []>;
 
+  } // let Itinerary = IIC_FP
+
+  // ─── FP divide: 8 cycles ─────────────────────────────────────────────────
+  let Itinerary = IIC_FPDIV in
   def DIVFrr : RR<0x4B, 0x05, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
 									"div.f $d, $s1, $s2", []>;
 }
 
+// ─── Integer divide: 8 cycles ──────────────────────────────────────────────
+let Itinerary = IIC_DIV in {
 def DIVrr : RR<0x4B, 0x20, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
 			"div $d, $s1, $s2",
@@ -414,6 +438,7 @@ def DIVUrr : RR<0x4B, 0x21, (outs DataRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2),
 			"div.u $d, $s1, $s2",
 			[(set DataRegs:$d, (udiv DataRegs:$s1, DataRegs:$s2))]>;
+} // let Itinerary = IIC_DIV
 
 def RSUBrc : RC<0x8B, 0x08, (outs DataRegs:$d), 
 							(ins DataRegs:$s1, s9imm:$const9) ,"rsub $d, $s1, $const9",
@@ -424,7 +449,8 @@ let Constraints="$d = $s1" in
 		"rsub $d", [(set DataRegs:$d, (sub (i32 0), DataRegs:$s1)) ]>;
 
 let Defs=[PSW] in {
-	
+	// ─── Integer multiply: 3 cycles ─────────────────────────────────────────
+	let Itinerary = IIC_MUL in {
 	let Constraints="$d = $fksrc" in
 	def MULsrr : SRR<0xE2, (outs DataRegs:$d),
 				(ins DataRegs:$fksrc, DataRegs:$s2), "mul $d, $s2",
@@ -441,6 +467,7 @@ let Defs=[PSW] in {
 	def MULUrr2 : RR2<0x73, 0x018, (outs ExtRegs:$d),
 			(ins DataRegs:$s1, DataRegs:$s2), "mulu $d, $s1, $s2",
 			[(set ExtRegs:$d, (mul (zext DataRegs:$s1), (zext DataRegs:$s2)))]>;
+	} // let Itinerary = IIC_MUL
 }
 //===----------------------------------------------------------------------===//
 // Logical Instructions
@@ -654,6 +681,8 @@ class AlignedLoad<bits<6> op2, string opstr, PatFrag PF,
 								 !strconcat(opstr, " $d, $memri"),
 								 [(set RC:$d, (intType (PF addr:$memri)))]>{ let mayLoad = 1; }
 
+// ─── Loads: 2 cycles ────────────────────────────────────────────────────────
+let Itinerary = IIC_LD in {
 def LDBbo  : AlignedLoad<0x20, "ld.b"  , sextloadi8>;
 def LDBUbo : AlignedLoad<0x21, "ld.bu" , zextloadi8>;
 def LDHbo  : AlignedLoad<0x22, "ld.h"  , sextloadi16>;
@@ -670,11 +699,14 @@ def LDAbo : BOL<0x99, (outs AddrRegs:$d),
                  (ins memsrc16:$memri),
                  "ld.a $d, $memri",
                  [(set AddrRegs:$d, (load addr:$memri))]>{ let mayLoad = 1; }
+} // let Itinerary = IIC_LD
 
 def : Pat<(extloadi8 addr:$src), (LDBbo addr:$src)>;
 def : Pat<(extloadi16 addr:$src), (LDHbo addr:$src)>;
 
+// ─── Stores: 2 cycles ───────────────────────────────────────────────────────
 let Predicates = [isnotPointer] in {
+	let Itinerary = IIC_ST in {
 	def STBbo : BO<0x89, 0x20,(outs), (ins DataRegs:$d, memsrc:$memri),
 			"st.b $memri, $d",
 			[(truncstorei8 DataRegs:$d, addr:$memri)]>;
@@ -690,6 +722,7 @@ let Predicates = [isnotPointer] in {
 	def STDbo : BO<0x89, 0x25, (outs), (ins ExtRegs:$d, memsrc:$memri),
 			"st.d $memri, $d",
 			[(store ExtRegs:$d, addr:$memri)]>;	
+	} // let Itinerary = IIC_ST
 	
 	def : Pat<(truncstorei32 ExtRegs:$d, addr:$memri), 
 			 (STWbo (EXTRACT_SUBREG ExtRegs:$d, subreg_even), addr:$memri)>;
@@ -699,6 +732,7 @@ let Predicates = [isnotPointer] in {
 } // let Predicates = [isnotPointer]
 
 
+let Itinerary = IIC_ST in
 let Predicates = [isPointer] in 
 		def STAbo : BO<0x89, 0x26, (outs), (ins AddrRegs:$d, memsrc:$memri),
 		"st.a $memri, $d",
@@ -731,7 +765,7 @@ def SHArr : RR<0x0F, 0x01, (outs DataRegs:$d), (ins DataRegs:$s1, DataRegs:$s2),
 
 let isTerminator = 1, isReturn = 1, 
 		isBarrier = 1, Uses =[PCXI, PSW, FCX],
-		Defs= [PSW, PCXI, PC, FCX] in 
+		Defs= [PSW, PCXI, PC, FCX], Itinerary = IIC_BR in 
   def RETsr : T16<0x00, (outs), (ins variable_ops), "ret",  [(TriCoreRetFlag)]> {
   	let Inst{15-12} = 0x9; 
   }
@@ -755,7 +789,7 @@ def call_target : Operand<i32>
 }  
   
   
-let isCall = 1, Defs = [A11], Uses = [A10] in 
+let isCall = 1, Defs = [A11], Uses = [A10], Itinerary = IIC_BR in 
 	def CALLb : B<0x6D, (outs), (ins i32imm:$disp24),
 	"call $disp24",  [(tricore_call imm:$disp24)]>;
 
@@ -766,7 +800,7 @@ def : Pat<(i32 (TriCoreWrapper tglobaladdr:$dst)),
 
 // Indirect call via address register (A[a]).
 // CALLI encodes only s1 (the call target); d, s2, n are unused encoding bits.
-let isCall = 1, Defs = [A11], Uses = [A10] in
+let isCall = 1, Defs = [A11], Uses = [A10], Itinerary = IIC_BR in
 	def CALLIa : RR<0x2D, 0x00, (outs), (ins AddrRegs:$s1),
 		"calli $s1", [(tricore_call AddrRegs:$s1)]> {
 		let d = 0;
@@ -970,13 +1004,13 @@ multiclass JUMP_16<bits<8> op1_sb, bits<8> op1_sbr,
 //					[(TriCorebrcc  bb:$disp4)]>;
 			
 		def sbr: SBR<op1_sbr, (outs), 
-					(ins jmptarget:$disp4, DataRegs:$s1),
-					!strconcat(asmstring, " $s1, $disp4"),
-					[(TriCorebrcc  bb:$disp4, DataRegs:$s1, PF)]>;
+					(ins jmptarget:$disp4, DataRegs:$s2),
+					!strconcat(asmstring, " $s2, $disp4"),
+					[(TriCorebrcc  bb:$disp4, DataRegs:$s2, PF)]>;
 }
 
 
-let isBranch = 1, isTerminator = 1 in {
+let isBranch = 1, isTerminator = 1, Itinerary = IIC_BR in {
 // Direct branch
 let isBarrier = 1 in {
   def Jb : B<0x1D, (outs), (ins jmptarget:$dst),
@@ -1010,7 +1044,7 @@ multiclass BRANCH_SIGNED<bits<8> op1_brc, bits<8> op1_brr,
                 []>;
 }
 
-let isBranch = 1, isTerminator = 1 in {
+let isBranch = 1, isTerminator = 1, Itinerary = IIC_BR in {
   defm JEQ : BRANCH_SIGNED<0xDF, 0x5F, 0b0, "jeq">;
   defm JNE : BRANCH_SIGNED<0xDF, 0x5F, 0b1, "jne">;
   defm JGE : BRANCH_SIGNED<0xFF, 0x7F, 0b0, "jge">;

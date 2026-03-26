@@ -42,6 +42,17 @@ unsigned TriCoreELFObjectWriter::getRelocType(MCContext &Ctx,
   switch ((unsigned)Fixup.getKind()) {
   default:
     llvm_unreachable("Unknown TriCore fixup kind");
+  // Standard data/section fixup kinds — used for .word/.long symbol refs,
+  // jump tables, and constant pools.
+  case FK_Data_1:
+    // No R_TRICORE_8ABS defined; treat as 16-bit absolute (best effort).
+    return ELF::R_TRICORE_16ABS;
+  case FK_Data_2:
+    return ELF::R_TRICORE_16ABS;
+  case FK_Data_4:
+    return IsPCRel ? ELF::R_TRICORE_32REL : ELF::R_TRICORE_32ABS;
+  case FK_PCRel_4:
+    return ELF::R_TRICORE_32REL;
   case TriCore::fixup_tricore_branch16:
     // 16-bit PC-relative branch (JZ, JNZ, SB, SBR instructions)
     Type = ELF::R_TRICORE_16REL;

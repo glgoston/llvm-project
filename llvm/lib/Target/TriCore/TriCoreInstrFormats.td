@@ -32,10 +32,11 @@ class InstTriCore<dag outs, dag ins, string asmstr, list<dag> pattern>
   /// outs and ins are inherited from the instruction class.
   let OutOperandList = outs;
   let InOperandList = ins;
-  //dag OutOperandList = outs;
-  //dag InOperandList = ins;
   let AsmString   = asmstr;
   let Pattern = pattern;
+  // Default scheduling: 1-cycle integer ALU.  Overridden for loads, stores,
+  // multiply, MAC, divide, branches, and FP instructions in TriCoreInstrInfo.td.
+  let Itinerary = IIC_ALU;
 }
 
 //===----------------------------------------------------------------------===//

@@ -29,9 +29,11 @@
 ; ─── JNZ/JZ – 16-bit short branches (SBR format) ─────────────────────────────
         jnz D4, target
 ; CHECK: jnz %d4, target
+; CHECK: encoding: [0xf6{{.*}},0x4{{.*}}]
 
         jz D4, target
 ; CHECK: jz %d4, target
+; CHECK: encoding: [0x76{{.*}},0x4{{.*}}]
 
 ; ─── BRC – 32-bit branch on comparison reg vs constant ───────────────────────
         jeq D4, 0, target

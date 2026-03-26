@@ -21,6 +21,7 @@ include "llvm/Target/Target.td"
 // Descriptions
 //===----------------------------------------------------------------------===//
 
+include "TriCoreSchedule.td"
 include "TriCoreRegisterInfo.td"
 include "TriCoreInstrInfo.td"
 include "TriCoreCallingConv.td"
@@ -33,11 +34,8 @@ def TriCoreInstrInfo : InstrInfo {
 // TriCore processors supported.
 //===----------------------------------------------------------------------===//
 
-class Proc<string Name, list<SubtargetFeature> Features>
-    : Processor<Name, NoItineraries, Features>;
-
 //===----------------------------------------------------------------------===//
-// TriCore SubtargetFeature definitions.
+// SubtargetFeature definitions.
 //===----------------------------------------------------------------------===//
 
 def FeatureFP  : SubtargetFeature<"fp",  "HasFP",    "true",
@@ -56,11 +54,11 @@ def FeatureMAC : SubtargetFeature<"mac", "HasMAC",   "true",
 // Processor definitions.
 //===----------------------------------------------------------------------===//
 
-def : Proc<"generic", []>;
-def : Proc<"tc16",    []>;
-def : Proc<"tc162",   [FeatureFP]>;
-def : Proc<"tc18",    [FeatureFP, FeatureDiv]>;
-def : Proc<"tc2x",    [FeatureFP, FeatureDiv, FeatureMAC]>;
+def : ProcessorModel<"generic", TriCoreSchedModel, []>;
+def : ProcessorModel<"tc16",    TriCoreSchedModel, []>;
+def : ProcessorModel<"tc162",   TriCoreSchedModel, [FeatureFP]>;
+def : ProcessorModel<"tc18",    TriCoreSchedModel, [FeatureFP, FeatureDiv]>;
+def : ProcessorModel<"tc2x",    TriCoreSchedModel, [FeatureFP, FeatureDiv, FeatureMAC]>;
 
 //===----------------------------------------------------------------------===//
 // Declare the target which we are implementing
