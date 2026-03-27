@@ -24,6 +24,7 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
+#include "llvm/MC/MCDwarf.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetOptions.h"
 #include <algorithm> // std::sort
@@ -97,6 +98,8 @@ void TriCoreFrameLowering::emitPrologue(MachineFunction &MF,
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
   MachineBasicBlock::iterator MBBI = MBB.begin();
   DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
+  MachineModuleInfo &MMI = MF.getMMI();
+  const MCRegisterInfo *MRI = MMI.getContext().getRegisterInfo();
   // const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
   uint64_t StackSize = computeStackSize(MF);
   if (!StackSize) {
@@ -104,11 +107,22 @@ void TriCoreFrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   if (hasFP(MF)) {
-    MachineFunction::iterator I;
+    // mov.a A14, A10  — save current SP to FP
     BuildMI(MBB, MBBI, dl, TII.get(TriCore::MOVAAsrr), TriCore::A14)
-        .addReg(TriCore::A10);
+        .addReg(TriCore::A10)
+        .setMIFlag(MachineInstr::FrameSetup);
+
+    // Emit CFI for frame pointer setup
+    // DW_CFA_def_cfa_register: CFA is now defined relative to A14 (FP)
+    unsigned CFIIndex = MF.addFrameInst(
+        MCCFIInstruction::createDefCfaRegister(nullptr,
+                                                MRI->getDwarfRegNum(TriCore::A14, true)));
+    BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+        .addCFIIndex(CFIIndex)
+        .setMIFlag(MachineInstr::FrameSetup);
 
     // Mark the FramePtr as live-in in every block except the entry
+    MachineFunction::iterator I;
     for (I = std::next(MF.begin()); I != MF.end(); ++I)
       I->addLiveIn(TriCore::A14);
   }
@@ -126,6 +140,14 @@ void TriCoreFrameLowering::emitPrologue(MachineFunction &MF,
         .addImm(StackSize)
         .setMIFlag(MachineInstr::FrameSetup);
   }
+
+  // Emit CFI for stack pointer adjustment
+  // DW_CFA_def_cfa_offset: CFA offset is now StackSize
+  unsigned CFIIndex = MF.addFrameInst(
+      MCCFIInstruction::cfiDefCfaOffset(nullptr, StackSize));
+  BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex)
+      .setMIFlag(MachineInstr::FrameSetup);
 }
 
 void TriCoreFrameLowering::emitEpilogue(MachineFunction &MF,

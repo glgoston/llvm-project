@@ -71,10 +71,12 @@ public:
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &Info) const override {
-    (void)Info;
     switch (*Name) {
-    case 'd':
-    case 'a':
+    case 'd': // Data register
+    case 'a': // Address register
+    case 'e': // Extended register (E-regs, 64-bit)
+    case 'r': // Generic register (defaults to data register)
+      Info.setAllowsRegister();
       return true;
     default:
       return false;

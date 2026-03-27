@@ -15,6 +15,7 @@ void TriCoreMCAsmInfo::anchor() {}
 
 TriCoreMCAsmInfo::TriCoreMCAsmInfo(const Triple &TT) {
   SupportsDebugInformation = true;
+  ExceptionsType = ExceptionHandling::DwarfCFI;
   Data8bitsDirective  = "\t.byte\t";
   Data16bitsDirective = "\t.short\t";
   Data32bitsDirective = "\t.word\t";
